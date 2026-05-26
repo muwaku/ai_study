@@ -1,0 +1,1864 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI 学习助手入口</title>
+  <style>
+    :root {
+      --bg: #f6f7f4;
+      --surface: #ffffff;
+      --surface-2: #eef2ef;
+      --text: #17201a;
+      --muted: #5f6b63;
+      --line: #d9dfd9;
+      --accent: #1c6f58;
+      --accent-2: #b34a34;
+      --accent-3: #315f9f;
+      --shadow: 0 16px 40px rgba(24, 34, 29, 0.08);
+      --radius: 8px;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(180deg, rgba(246, 247, 244, 0.88), rgba(246, 247, 244, 1)),
+        repeating-linear-gradient(90deg, rgba(23, 32, 26, 0.035) 0 1px, transparent 1px 64px),
+        repeating-linear-gradient(0deg, rgba(23, 32, 26, 0.028) 0 1px, transparent 1px 64px);
+      color: var(--text);
+    }
+
+    button,
+    input,
+    textarea,
+    select {
+      font: inherit;
+    }
+
+    button {
+      border: 1px solid transparent;
+      border-radius: var(--radius);
+      background: var(--text);
+      color: #fff;
+      min-height: 40px;
+      padding: 0 14px;
+      cursor: pointer;
+      transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 18px rgba(23, 32, 26, 0.12);
+    }
+
+    button.secondary {
+      background: #fff;
+      color: var(--text);
+      border-color: var(--line);
+    }
+
+    button.ghost {
+      background: transparent;
+      color: var(--muted);
+      border-color: var(--line);
+    }
+
+    button.warn {
+      background: var(--accent-2);
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .app {
+      width: min(1220px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 28px 0 36px;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .mark {
+      width: 42px;
+      height: 42px;
+      border-radius: var(--radius);
+      background:
+        linear-gradient(135deg, rgba(28, 111, 88, 0.95), rgba(49, 95, 159, 0.95)),
+        #1c6f58;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      font-weight: 800;
+      letter-spacing: 0;
+      flex: 0 0 auto;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin: 0;
+    }
+
+    h1 {
+      font-size: clamp(22px, 2.5vw, 32px);
+      line-height: 1.1;
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      margin-top: 5px;
+      line-height: 1.45;
+    }
+
+    .top-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      gap: 18px;
+      align-items: start;
+    }
+
+    .panel {
+      background: rgba(255, 255, 255, 0.9);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .panel-header {
+      padding: 18px 20px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      background: rgba(255, 255, 255, 0.62);
+    }
+
+    .panel-header h2 {
+      font-size: 18px;
+      letter-spacing: 0;
+    }
+
+    .panel-body {
+      padding: 20px;
+    }
+
+    .lesson-hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 260px;
+      gap: 18px;
+      align-items: stretch;
+    }
+
+    .today {
+      min-height: 260px;
+      padding: 24px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background:
+        linear-gradient(135deg, rgba(28, 111, 88, 0.12), transparent 42%),
+        linear-gradient(315deg, rgba(179, 74, 52, 0.11), transparent 45%),
+        #fff;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 18px;
+    }
+
+    .eyebrow {
+      font-size: 13px;
+      color: var(--accent);
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+
+    .today h2 {
+      font-size: clamp(24px, 4vw, 38px);
+      line-height: 1.08;
+      letter-spacing: 0;
+      max-width: 12ch;
+    }
+
+    .today p {
+      color: var(--muted);
+      line-height: 1.65;
+      max-width: 72ch;
+      margin-top: 14px;
+    }
+
+    .meta-grid {
+      display: grid;
+      gap: 10px;
+      align-content: stretch;
+    }
+
+    .metric {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      padding: 14px;
+      min-height: 78px;
+    }
+
+    .metric .label {
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
+
+    .metric strong {
+      font-size: 18px;
+      line-height: 1.25;
+    }
+
+    .progress {
+      height: 10px;
+      background: var(--surface-2);
+      border-radius: 999px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+    }
+
+    .progress span {
+      display: block;
+      height: 100%;
+      width: 0;
+      background: linear-gradient(90deg, var(--accent), var(--accent-3));
+    }
+
+    .section-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    .info-block {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      padding: 15px;
+      min-height: 150px;
+    }
+
+    .info-block h3 {
+      font-size: 15px;
+      margin-bottom: 10px;
+    }
+
+    ul {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--muted);
+      line-height: 1.62;
+    }
+
+    .prompt-panel {
+      margin-top: 18px;
+    }
+
+    .legacy {
+      display: none;
+    }
+
+    .status-line {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 30px;
+      padding: 0 10px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: var(--surface-2);
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .status-pill.ready {
+      color: var(--accent);
+      background: rgba(28, 111, 88, 0.1);
+      border-color: rgba(28, 111, 88, 0.26);
+    }
+
+    .settings-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(130px, 0.6fr) auto;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .settings-row input {
+      min-height: 40px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 0 11px;
+      background: #fbfcfa;
+      color: var(--text);
+      min-width: 0;
+    }
+
+    .chat-log {
+      min-height: 300px;
+      max-height: 520px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #fbfcfa;
+      padding: 14px;
+      display: grid;
+      align-content: start;
+      gap: 12px;
+    }
+
+    .message {
+      width: min(88%, 720px);
+      padding: 12px 13px;
+      border-radius: var(--radius);
+      line-height: 1.62;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      border: 1px solid var(--line);
+      background: #fff;
+    }
+
+    .message.user {
+      justify-self: end;
+      background: rgba(49, 95, 159, 0.08);
+      border-color: rgba(49, 95, 159, 0.22);
+    }
+
+    .message.assistant {
+      justify-self: start;
+      background: #fff;
+    }
+
+    .chat-compose {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      margin-top: 12px;
+      align-items: end;
+    }
+
+    .chat-compose textarea {
+      margin: 0;
+      min-height: 86px;
+    }
+
+    .validation-form {
+      display: grid;
+      gap: 10px;
+    }
+
+    .validation-form label {
+      display: grid;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .validation-form textarea {
+      margin: 0;
+      min-height: 96px;
+    }
+
+    .validation-result {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #fbfcfa;
+      padding: 12px;
+      color: var(--muted);
+      line-height: 1.55;
+      white-space: pre-wrap;
+      min-height: 72px;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 280px;
+      resize: vertical;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #fbfcfa;
+      color: var(--text);
+      padding: 14px;
+      line-height: 1.55;
+      margin-top: 14px;
+    }
+
+    textarea.small {
+      min-height: 170px;
+    }
+
+    .side-stack {
+      display: grid;
+      gap: 18px;
+    }
+
+    .checklist {
+      display: grid;
+      gap: 10px;
+    }
+
+    .check-item {
+      display: grid;
+      grid-template-columns: 22px minmax(0, 1fr);
+      gap: 10px;
+      align-items: start;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .check-item input {
+      margin-top: 3px;
+      accent-color: var(--accent);
+    }
+
+    .notes {
+      display: grid;
+      gap: 10px;
+    }
+
+    .notes input,
+    .notes textarea {
+      margin: 0;
+      min-height: 0;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #fbfcfa;
+      padding: 11px 12px;
+      color: var(--text);
+    }
+
+    .notes textarea {
+      min-height: 110px;
+    }
+
+    .small-text {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .divider {
+      height: 1px;
+      background: var(--line);
+      margin: 16px 0;
+    }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 24px;
+      transform: translateX(-50%) translateY(18px);
+      background: var(--text);
+      color: #fff;
+      padding: 11px 14px;
+      border-radius: var(--radius);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 160ms ease, transform 160ms ease;
+      box-shadow: 0 16px 40px rgba(23, 32, 26, 0.2);
+      z-index: 20;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    dialog {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 0;
+      width: min(560px, calc(100% - 32px));
+    }
+
+    dialog::backdrop {
+      background: rgba(23, 32, 26, 0.36);
+    }
+
+    .dialog-body {
+      padding: 20px;
+    }
+
+    .dialog-body h2 {
+      font-size: 20px;
+      margin-bottom: 10px;
+    }
+
+    .dialog-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      padding: 16px 20px;
+      border-top: 1px solid var(--line);
+      background: #fbfcfa;
+    }
+
+    @media (max-width: 980px) {
+      .layout,
+      .lesson-hero {
+        grid-template-columns: 1fr;
+      }
+
+      .settings-row,
+      .chat-compose {
+        grid-template-columns: 1fr;
+      }
+
+      .section-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .topbar {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .top-actions {
+        justify-content: flex-start;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .app {
+        width: min(100% - 20px, 1220px);
+        padding-top: 16px;
+      }
+
+      .panel-body,
+      .panel-header,
+      .today {
+        padding: 16px;
+      }
+
+      .toolbar,
+      .top-actions {
+        width: 100%;
+      }
+
+      button {
+        flex: 1 1 auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="mark">AI</div>
+        <div>
+          <h1>学习助手启动入口</h1>
+          <p class="subtitle">打开就是当前进度。复制启动提示词给 AI，然后按它安排学习。</p>
+        </div>
+      </div>
+      <div class="top-actions">
+        <button class="secondary" id="startLearningTop">开始学习</button>
+        <button class="ghost" id="scrollSubmitTop">提交验收</button>
+      </div>
+    </header>
+
+    <div class="layout">
+      <section class="panel">
+        <div class="panel-header">
+          <h2>今天的学习</h2>
+          <div class="small-text" id="sessionCounter"></div>
+        </div>
+        <div class="panel-body">
+          <div class="lesson-hero">
+            <div class="today">
+              <div>
+                <div class="eyebrow" id="lessonStage"></div>
+                <h2 id="lessonTitle"></h2>
+                <p id="lessonSummary"></p>
+              </div>
+              <div>
+                <div class="progress" aria-label="课程总进度">
+                  <span id="progressBar"></span>
+                </div>
+                <p class="small-text" id="progressText" style="margin-top: 10px;"></p>
+              </div>
+            </div>
+
+            <div class="meta-grid">
+              <div class="metric">
+                <div class="label">教材来源</div>
+                <strong id="lessonSource"></strong>
+              </div>
+              <div class="metric">
+                <div class="label">预计时长</div>
+                <strong>30-45 分钟</strong>
+              </div>
+              <div class="metric">
+                <div class="label">今日产物</div>
+                <strong id="lessonDeliverable"></strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="section-grid">
+            <div class="info-block">
+              <h3>今天只学这些</h3>
+              <ul id="lessonTopics"></ul>
+            </div>
+            <div class="info-block">
+              <h3>主练习</h3>
+              <ul id="lessonPractice"></ul>
+            </div>
+            <div class="info-block">
+              <h3>通过标准</h3>
+              <ul id="lessonAcceptance"></ul>
+            </div>
+          </div>
+
+          <section class="panel prompt-panel" id="assistantPanel">
+            <div class="panel-header">
+              <h2>AI 学习助手</h2>
+              <div class="toolbar">
+                <button id="startLearning">开始/继续学习</button>
+                <button class="secondary" id="clearChat">清空本次对话</button>
+              </div>
+            </div>
+            <div class="panel-body">
+              <div class="status-line">
+                <span class="status-pill" id="apiStatus">检查本地 AI 连接中</span>
+                <button class="ghost" id="toggleSettings">API 设置</button>
+                <span class="small-text" id="serverRoot"></span>
+              </div>
+              <div class="settings-row" id="apiSettings">
+                <input id="apiKey" type="password" autocomplete="off" placeholder="首次使用填写 OpenAI API Key，本地保存" />
+                <input id="apiModel" value="gpt-5-mini" placeholder="模型" />
+                <button class="secondary" id="saveSettings">保存</button>
+              </div>
+              <div class="chat-log" id="chatLog" aria-live="polite"></div>
+              <div class="chat-compose">
+                <textarea id="chatInput" placeholder="把你的运行结果、报错或疑问发给学习助手。"></textarea>
+                <button id="sendMessage">发送</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel prompt-panel legacy">
+            <div class="panel-header">
+              <h2>给 AI 的启动提示词</h2>
+              <div class="toolbar">
+                <button id="copyStart">复制</button>
+                <button class="secondary" id="openChatGPT">打开 ChatGPT</button>
+              </div>
+            </div>
+            <div class="panel-body">
+              <p class="small-text">复制后发给 AI。它会按当前进度讲解、派发练习、等待你贴结果。</p>
+              <textarea id="startPrompt" spellcheck="false"></textarea>
+            </div>
+          </section>
+
+          <section class="panel prompt-panel legacy">
+            <div class="panel-header">
+              <h2>练习后的验收提示词</h2>
+              <div class="toolbar">
+                <button id="copyReview">复制</button>
+              </div>
+            </div>
+            <div class="panel-body">
+              <p class="small-text">完成练习后，把这段和你的命令、代码、输出、报错一起发给 AI。</p>
+              <textarea class="small" id="reviewPrompt" spellcheck="false"></textarea>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <aside class="side-stack">
+        <section class="panel" id="validationPanel">
+          <div class="panel-header">
+            <h2>提交验收</h2>
+          </div>
+          <div class="panel-body">
+            <div class="validation-form">
+              <label>
+                提交文件或目录路径
+                <textarea id="submitPaths" placeholder="每行一个路径，默认相对 E:\1_project_manage\study。例如：
+hello_project
+hello_project\main.py"></textarea>
+              </label>
+              <label>
+                命令或运行输出
+                <textarea id="submitOutput" placeholder="粘贴运行命令、终端输出、报错或测试结果。"></textarea>
+              </label>
+              <label>
+                你的说明
+                <textarea id="submitNotes" placeholder="写你完成了什么、哪里不确定、希望 AI 重点验收什么。"></textarea>
+              </label>
+              <button id="submitValidation">提交给 AI 验收</button>
+              <div class="validation-result" id="validationResult">提交后，AI 会按当前课程通过标准验收；通过后自动进入下一次学习。</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h2>完成检查</h2>
+          </div>
+          <div class="panel-body">
+            <div class="checklist" id="checklist"></div>
+            <div class="divider"></div>
+            <button class="secondary" id="completeSession">备用：手动进入下一次</button>
+            <p class="small-text" style="margin-top: 10px;">正常情况用上面的“提交验收”。AI 判定通过后会自动推进，这里只作为备用。</p>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h2>学习记录</h2>
+          </div>
+          <div class="panel-body">
+            <div class="notes">
+              <input id="noteTitle" placeholder="今天的文件/练习名" />
+              <textarea id="noteBody" placeholder="记录报错、理解、AI 给你的结论"></textarea>
+              <button class="secondary" id="saveNote">保存本次记录</button>
+            </div>
+            <div class="divider"></div>
+            <p class="small-text" id="lastNote"></p>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h2>进度管理</h2>
+          </div>
+          <div class="panel-body">
+            <div class="toolbar">
+              <button class="secondary" id="prevSession">上一次</button>
+              <button class="secondary" id="nextSession">下一次</button>
+            </div>
+            <div class="divider"></div>
+            <div class="toolbar">
+              <button class="ghost" id="exportState">导出进度</button>
+              <button class="ghost" id="importState">导入进度</button>
+              <button class="warn" id="resetState">重置</button>
+            </div>
+            <textarea class="small" id="stateBox" placeholder="导出的进度会显示在这里；导入时把进度 JSON 粘贴到这里。"></textarea>
+          </div>
+        </section>
+      </aside>
+    </div>
+  </main>
+
+  <dialog id="confirmDialog">
+    <div class="dialog-body">
+      <h2 id="dialogTitle"></h2>
+      <p id="dialogText" class="small-text"></p>
+    </div>
+    <div class="dialog-actions">
+      <button class="secondary" id="dialogCancel">取消</button>
+      <button class="warn" id="dialogOk">确认</button>
+    </div>
+  </dialog>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const curriculum = [
+      {
+        week: 1,
+        day: 1,
+        stage: "第 1 周 · 命令行与环境",
+        title: "当前目录、路径与运行脚本",
+        source: "MIT Missing Semester · Shell；Python 官方教程 · Interpreter",
+        summary: "先建立最小运行感：知道自己在哪个目录，知道脚本在哪里，能用命令启动它。",
+        deliverable: "hello_project 文件夹",
+        topics: ["当前目录与路径", "创建和进入文件夹", "运行一个 Python 文件"],
+        practice: ["创建一个学习项目文件夹", "运行 hello.py", "把运行结果贴给 AI 验收"],
+        acceptance: ["能说明当前目录是什么", "能解释相对路径和绝对路径", "能独立运行 python hello.py"]
+      },
+      {
+        week: 1,
+        day: 2,
+        stage: "第 1 周 · 命令行与环境",
+        title: "文件查找、文本查看与报错定位",
+        source: "MIT Missing Semester · Shell Tools",
+        summary: "学习在项目里找文件、看文件、搜索报错文本。目标是以后面对 AI 项目时不迷路。",
+        deliverable: "一次搜索记录",
+        topics: ["列出文件", "查看文件内容", "搜索文本", "复制关键报错"],
+        practice: ["在项目里查找某个函数名或关键词", "打开并阅读一个文本文件", "整理一次报错定位步骤"],
+        acceptance: ["能找到指定文件", "能搜索指定文本", "能把报错定位到具体文件或命令"]
+      },
+      {
+        week: 1,
+        day: 3,
+        stage: "第 1 周 · 命令行与环境",
+        title: "虚拟环境、依赖与 requirements",
+        source: "Automate the Boring Stuff 3e · Setup；Python 官方 venv 文档",
+        summary: "理解为什么项目需要独立环境，学会安装依赖并记录依赖。",
+        deliverable: "带 requirements.txt 的项目",
+        topics: ["虚拟环境", "pip 安装依赖", "requirements.txt", "常见依赖报错"],
+        practice: ["创建 .venv", "安装一个包", "导出 requirements.txt"],
+        acceptance: ["能激活虚拟环境", "能安装依赖", "能解释 ModuleNotFoundError 大概意味着什么"]
+      },
+      {
+        week: 2,
+        day: 1,
+        stage: "第 2 周 · Git 风险控制",
+        title: "status、diff 与提交前检查",
+        source: "Pro Git · Git Basics；MIT Missing Semester · Version Control",
+        summary: "你已经会基本 Git，这次重点是看清 AI 改了什么，而不是只会提交。",
+        deliverable: "一次可解释的 diff",
+        topics: ["git status", "git diff", "git add", "git commit", "提交信息"],
+        practice: ["让 AI 或自己改一行代码", "查看 diff", "提交这次变更"],
+        acceptance: ["能说清改了哪个文件", "能解释 diff 里的 + 和 -", "能提交一次小改动"]
+      },
+      {
+        week: 2,
+        day: 2,
+        stage: "第 2 周 · Git 风险控制",
+        title: "add -p、restore 与只提交该提交的内容",
+        source: "Pro Git · Interactive Staging；Git Basics",
+        summary: "学会把无关修改挡在提交外面。AI 一次改多处时，这个能力很关键。",
+        deliverable: "一次部分提交",
+        topics: ["git add -p", "git restore", "暂存区", "工作区"],
+        practice: ["制造两个小改动", "只暂存其中一个", "撤销另一个或保留待处理"],
+        acceptance: ["能区分工作区和暂存区", "能只提交部分改动", "能撤销指定文件的未提交修改"]
+      },
+      {
+        week: 2,
+        day: 3,
+        stage: "第 2 周 · Git 风险控制",
+        title: "stash、.gitignore 与试错保护",
+        source: "Pro Git · Stashing and Cleaning；Git Basics",
+        summary: "建立安全试错习惯：临时保存现场，避免把密钥、缓存、日志交进仓库。",
+        deliverable: "一份 .gitignore",
+        topics: ["git stash", ".gitignore", "敏感文件", "缓存文件"],
+        practice: ["创建 .gitignore", "忽略 .env 和临时文件", "练习 stash 保存和恢复"],
+        acceptance: ["能解释哪些文件不该提交", "能使用 stash 临时保存改动", "能防止 .env 被提交"]
+      },
+      {
+        week: 3,
+        day: 1,
+        stage: "第 3 周 · Python 基础",
+        title: "变量、函数与 print 调试",
+        source: "Harvard CS50P · Functions, Variables；Automate 3e · Python Basics",
+        summary: "只学能读懂脚本的基础。重点是函数输入、输出和中间状态。",
+        deliverable: "一个带函数的小脚本",
+        topics: ["变量", "函数", "参数", "返回值", "print 调试"],
+        practice: ["写一个 format_title 函数", "输入游戏名和平台", "输出规范化标题"],
+        acceptance: ["能解释函数拿到什么、返回什么", "能用 print 查看中间值", "能改一个简单函数"]
+      },
+      {
+        week: 3,
+        day: 2,
+        stage: "第 3 周 · Python 基础",
+        title: "条件、循环、列表与字典",
+        source: "Harvard CS50P · Conditionals, Loops；Automate 3e · Lists and Dictionaries",
+        summary: "把数据处理里最常见的控制逻辑补齐。",
+        deliverable: "一段分类脚本",
+        topics: ["if/else", "for 循环", "列表", "字典", "简单分类"],
+        practice: ["给一组游戏数据打标签", "按平台或品类分类", "输出分类结果"],
+        acceptance: ["能遍历列表", "能读取字典字段", "能写出一个简单分类规则"]
+      },
+      {
+        week: 3,
+        day: 3,
+        stage: "第 3 周 · Python 基础",
+        title: "异常处理：让程序失败得可理解",
+        source: "Harvard CS50P · Exceptions；Python 官方教程 · Errors and Exceptions",
+        summary: "不是追求不出错，而是出错时知道为什么、在哪里、下一步做什么。",
+        deliverable: "带 try/except 的脚本",
+        topics: ["异常", "try/except", "错误类型", "用户可读提示"],
+        practice: ["处理缺失文件", "处理字段缺失", "给错误加明确提示"],
+        acceptance: ["能说明异常和普通返回值的区别", "能捕获一个常见错误", "能避免程序莫名崩溃"]
+      },
+      {
+        week: 4,
+        day: 1,
+        stage: "第 4 周 · 文件与结构化数据",
+        title: "读写文本、CSV 与 JSON",
+        source: "CS50P · File I/O；Automate 3e · Files, CSV and JSON",
+        summary: "让 Python 真正开始处理资料。重点是输入、处理、输出的闭环。",
+        deliverable: "csv_json_demo",
+        topics: ["文本文件", "CSV", "JSON", "编码", "路径"],
+        practice: ["读取一份 CSV", "读取一份 JSON", "导出处理后的结果"],
+        acceptance: ["能解释 CSV 和 JSON 适合什么数据", "能读写文件", "能处理路径错误"]
+      },
+      {
+        week: 4,
+        day: 2,
+        stage: "第 4 周 · 文件与结构化数据",
+        title: "pandas 入门：筛选、聚合、导出",
+        source: "pandas 官方 Getting Started",
+        summary: "你已经会 Excel 和 SQL，这里把同样思路迁移到 Python 数据处理。",
+        deliverable: "榜单整理表",
+        topics: ["DataFrame", "读取 Excel/CSV", "筛选", "groupby", "导出"],
+        practice: ["读取样例榜单", "按平台或品类聚合", "输出 Excel"],
+        acceptance: ["能读入表格", "能做一次筛选和聚合", "能导出结果文件"]
+      },
+      {
+        week: 4,
+        day: 3,
+        stage: "第 4 周 · 文件与结构化数据",
+        title: "综合练习：清洗一份游戏数据",
+        source: "Automate 3e · Spreadsheet Files；pandas 官方 Getting Started",
+        summary: "把前面文件、异常、pandas 连起来，做一个真实一点的小任务。",
+        deliverable: "clean_games.py",
+        topics: ["缺失值", "字段标准化", "去重", "导出报告"],
+        practice: ["清洗一份样例游戏数据", "输出干净表格", "写 5 行处理说明"],
+        acceptance: ["能说明清洗规则", "能保存结果", "能处理空值或重复数据"]
+      },
+      {
+        week: 5,
+        day: 1,
+        stage: "第 5 周 · 项目结构",
+        title: "入口文件、配置文件与模块拆分",
+        source: "CS50P · Libraries；Python 官方教程 · Modules",
+        summary: "从单文件脚本过渡到可维护小项目。目标是看懂 AI 生成项目的骨架。",
+        deliverable: "拆分后的项目目录",
+        topics: ["main.py", "config.py", "模块", "导入", "项目入口"],
+        practice: ["把一个单文件脚本拆成 main/config/process 三个文件", "运行拆分后的项目"],
+        acceptance: ["能指出入口文件", "能解释每个模块职责", "能运行拆分后的项目"]
+      },
+      {
+        week: 5,
+        day: 2,
+        stage: "第 5 周 · 项目结构",
+        title: "配置、密钥与 README",
+        source: "MIT Missing Semester · Command-line Environment；Pro Git · .gitignore",
+        summary: "让项目脱离你的脑子也能运行。配置和文档是之后验收 AI 项目的关键。",
+        deliverable: "README + .env.example",
+        topics: ["配置文件", ".env", ".env.example", "README", "运行说明"],
+        practice: ["把硬编码参数移到配置", "写最小 README", "补 .env.example"],
+        acceptance: ["能解释为什么不能提交真实密钥", "能按 README 运行项目", "能说明配置在哪里改"]
+      },
+      {
+        week: 5,
+        day: 3,
+        stage: "第 5 周 · 项目结构",
+        title: "需求拆分：让 AI 小步改代码",
+        source: "MIT Missing Semester 2026 · Agentic Coding；CS50P · Style",
+        summary: "学习如何把一个模糊需求拆成可验收的小任务，避免 AI 一次改崩整个项目。",
+        deliverable: "一份小步改造清单",
+        topics: ["需求拆分", "验收点", "小步提交", "改动范围"],
+        practice: ["把一个功能需求拆成 3 个小任务", "为每个任务写通过标准"],
+        acceptance: ["能限制 AI 的修改范围", "能为每一步写验收标准", "能避免一次性大改"]
+      },
+      {
+        week: 6,
+        day: 1,
+        stage: "第 6 周 · 日志与调试",
+        title: "logging：让关键步骤留下痕迹",
+        source: "MIT Missing Semester · Debugging and Profiling；Python 官方 logging 文档",
+        summary: "日志是你验收自动化工具的眼睛。先学记录流程，再谈修 bug。",
+        deliverable: "带日志的处理脚本",
+        topics: ["日志级别", "关键步骤", "错误日志", "日志文件"],
+        practice: ["给数据脚本加开始、读取、处理、导出日志", "制造一次错误并观察日志"],
+        acceptance: ["能通过日志知道程序走到哪一步", "能区分 info 和 error", "能保存日志文件"]
+      },
+      {
+        week: 6,
+        day: 2,
+        stage: "第 6 周 · 日志与调试",
+        title: "调试流程：从报错到定位",
+        source: "MIT Missing Semester · Debugging and Profiling；CS50P · Exceptions",
+        summary: "建立固定排查路径：命令、路径、依赖、数据、配置、逻辑。",
+        deliverable: "一份 bug 复盘",
+        topics: ["traceback", "错误分类", "最小复现", "排查顺序"],
+        practice: ["AI 制造一个小 bug", "你按流程定位", "写出错误分类和修复方式"],
+        acceptance: ["能读 traceback 的最后几行", "能判断错误类别", "能整理一次可复用排查记录"]
+      },
+      {
+        week: 6,
+        day: 3,
+        stage: "第 6 周 · 日志与调试",
+        title: "失败场景：空数据、缺字段、网络失败",
+        source: "Automate 3e · Web and Files；Python 官方教程 · Errors",
+        summary: "真实工具的问题往往不在正常流程，而在异常输入。今天专门练边界情况。",
+        deliverable: "异常场景处理清单",
+        topics: ["空数据", "缺字段", "错误路径", "网络失败", "友好提示"],
+        practice: ["给脚本加入 3 个失败场景处理", "记录每种错误提示"],
+        acceptance: ["空文件不崩", "缺字段有提示", "错误路径能指明问题"]
+      },
+      {
+        week: 7,
+        day: 1,
+        stage: "第 7 周 · 测试",
+        title: "单元测试：固定输入和预期输出",
+        source: "CS50P · Unit Tests；pytest 官方 Getting Started",
+        summary: "测试不是程序员仪式，而是你让 AI 改代码前后的保险。",
+        deliverable: "第一个 pytest 文件",
+        topics: ["测试函数", "样例输入", "预期输出", "pytest 命令"],
+        practice: ["给一个清洗函数写正常数据测试", "运行 pytest"],
+        acceptance: ["能运行 pytest", "能解释测试为什么通过或失败", "能写一个固定输入输出测试"]
+      },
+      {
+        week: 7,
+        day: 2,
+        stage: "第 7 周 · 测试",
+        title: "异常测试与回归测试",
+        source: "pytest 官方 Getting Started；CS50P · Unit Tests",
+        summary: "让已经修过的问题不要再回来。重点是空数据、缺字段、错误类型。",
+        deliverable: "3 个测试用例",
+        topics: ["异常测试", "边界条件", "回归测试", "测试数据"],
+        practice: ["给空数据、缺字段、重复数据分别写测试", "让 AI 根据测试修代码"],
+        acceptance: ["有至少 3 个测试", "能先看测试再改功能", "能知道改动有没有破坏旧逻辑"]
+      },
+      {
+        week: 7,
+        day: 3,
+        stage: "第 7 周 · 测试",
+        title: "AI 改代码前的测试协议",
+        source: "MIT Missing Semester 2026 · Agentic Coding；pytest 官方文档",
+        summary: "把测试变成你和 AI 协作的固定规矩：先测试、再实现、再 diff、再提交。",
+        deliverable: "AI 修改协议",
+        topics: ["先写测试", "最小改动", "运行验证", "diff 审查", "提交"],
+        practice: ["让 AI 按协议修改一个小功能", "你审查 diff 并运行测试"],
+        acceptance: ["能要求 AI 先写测试", "能运行测试验收", "能只提交通过测试的改动"]
+      },
+      {
+        week: 8,
+        day: 1,
+        stage: "第 8 周 · API 与 Web 基础",
+        title: "HTTP、JSON 与状态码",
+        source: "MDN · How the web works；MDN · HTTP；MDN · JSON",
+        summary: "理解工具和外部服务如何通信。重点是看懂请求、响应和错误码。",
+        deliverable: "API 概念笔记",
+        topics: ["HTTP", "GET/POST", "JSON", "状态码", "请求失败"],
+        practice: ["阅读一个 JSON 响应样例", "解释 200/400/401/404/500 的大概含义"],
+        acceptance: ["能说明 API 返回的 JSON 是什么", "能判断常见状态码", "能区分网络失败和业务错误"]
+      },
+      {
+        week: 8,
+        day: 2,
+        stage: "第 8 周 · API 与 Web 基础",
+        title: "requests：调用接口并保存结果",
+        source: "Automate 3e · Web；Requests 官方文档",
+        summary: "把 API 理解落到代码：请求数据、解析 JSON、保存成文件。",
+        deliverable: "fetch_api.py",
+        topics: ["requests.get", "response.json", "超时", "保存文件"],
+        practice: ["调用一个公开 API 或本地样例接口", "保存 JSON", "转成 CSV"],
+        acceptance: ["能设置超时", "能处理非 200 状态", "能保存接口返回数据"]
+      },
+      {
+        week: 8,
+        day: 3,
+        stage: "第 8 周 · API 与 Web 基础",
+        title: "小型数据流：获取、处理、输出",
+        source: "MDN · Fetching data；pandas 官方 Getting Started",
+        summary: "把 API、pandas、文件输出连起来，形成最小自动化数据流。",
+        deliverable: "api_to_report.py",
+        topics: ["获取数据", "解析 JSON", "清洗字段", "导出 Markdown/Excel"],
+        practice: ["从 API 或样例 JSON 生成一份小报告", "加日志和异常"],
+        acceptance: ["能说明数据流每一步", "能处理请求失败", "能输出可读结果"]
+      },
+      {
+        week: 9,
+        day: 1,
+        stage: "第 9 周 · 综合项目 v1",
+        title: "项目立项：个人信息整理工具",
+        source: "前 8 周材料综合",
+        summary: "开始做一个小而完整的工具，不追求复杂，只追求可运行、可维护、可验收。",
+        deliverable: "项目需求说明",
+        topics: ["项目目标", "输入输出", "模块拆分", "验收标准"],
+        practice: ["定义工具输入、处理、输出", "拆成 4 个模块", "写 README 草稿"],
+        acceptance: ["需求范围足够小", "每个模块职责清楚", "有明确运行和验收方式"]
+      },
+      {
+        week: 9,
+        day: 2,
+        stage: "第 9 周 · 综合项目 v1",
+        title: "搭建项目骨架",
+        source: "Python 官方教程 · Modules；Pro Git · Basics",
+        summary: "先搭骨架，不急着实现全部功能。骨架清楚，后面才好让 AI 小步填充。",
+        deliverable: "项目目录与初始提交",
+        topics: ["目录结构", "入口文件", "配置", "测试目录", "Git 初始提交"],
+        practice: ["创建 main/config/process/output/tests", "提交初始骨架"],
+        acceptance: ["项目能运行空流程", "有 README", "有初始 Git 提交"]
+      },
+      {
+        week: 9,
+        day: 3,
+        stage: "第 9 周 · 综合项目 v1",
+        title: "实现读取与清洗模块",
+        source: "pandas 官方 Getting Started；Automate 3e · Files",
+        summary: "完成第一个真实功能：读取数据并产出干净中间表。",
+        deliverable: "读取与清洗功能",
+        topics: ["读取数据", "字段标准化", "缺失值", "中间结果"],
+        practice: ["实现 data_loader 和 cleaner", "保存 clean_output.csv"],
+        acceptance: ["能读取样例数据", "能清洗并保存结果", "有日志记录关键步骤"]
+      },
+      {
+        week: 10,
+        day: 1,
+        stage: "第 10 周 · 综合项目 v1",
+        title: "实现报告输出模块",
+        source: "Automate 3e · Files；pandas 官方 Getting Started",
+        summary: "把处理结果变成你能看的 Markdown 或 Excel 报告。",
+        deliverable: "Markdown/Excel 报告",
+        topics: ["聚合统计", "Markdown 输出", "Excel 输出", "结果说明"],
+        practice: ["生成一份简单报告", "包括总数、分类统计、异常项"],
+        acceptance: ["报告可读", "结果和源数据能对应", "能说明每个统计口径"]
+      },
+      {
+        week: 10,
+        day: 2,
+        stage: "第 10 周 · 综合项目 v1",
+        title: "补日志、异常和配置",
+        source: "MIT Missing Semester · Debugging；Python logging 文档",
+        summary: "把能跑的脚本变成出错可排查的小工具。",
+        deliverable: "可排查版本",
+        topics: ["配置路径", "日志文件", "异常提示", "失败保护"],
+        practice: ["给项目加日志文件", "处理路径错误、空数据、缺字段"],
+        acceptance: ["出错信息可理解", "日志能定位步骤", "配置不写死在代码里"]
+      },
+      {
+        week: 10,
+        day: 3,
+        stage: "第 10 周 · 综合项目 v1",
+        title: "补测试并做回归检查",
+        source: "pytest 官方 Getting Started；CS50P · Unit Tests",
+        summary: "用测试保护这个小项目，建立 AI 后续修改前的验收线。",
+        deliverable: "测试套件 v1",
+        topics: ["核心函数测试", "边界测试", "测试数据", "回归检查"],
+        practice: ["为清洗和统计函数写测试", "运行 pytest", "修复失败测试"],
+        acceptance: ["测试可运行", "覆盖正常和异常输入", "代码修改后能重复验证"]
+      },
+      {
+        week: 11,
+        day: 1,
+        stage: "第 11 周 · AI 协作验收",
+        title: "让 AI 加一个小功能并审查 diff",
+        source: "MIT Missing Semester 2026 · Agentic Coding；Pro Git · diff",
+        summary: "模拟真实协作：AI 改，你审。目标是控制范围、看懂改动、跑测试。",
+        deliverable: "一次受控 AI 修改",
+        topics: ["小功能请求", "修改范围", "git diff", "pytest", "提交"],
+        practice: ["要求 AI 加一个小统计项", "审查 diff", "运行测试", "提交"],
+        acceptance: ["AI 没有大范围重写", "diff 可解释", "测试通过后才提交"]
+      },
+      {
+        week: 11,
+        day: 2,
+        stage: "第 11 周 · AI 协作验收",
+        title: "制造 bug、定位 bug、修复 bug",
+        source: "MIT Missing Semester · Debugging；CS50P · Exceptions",
+        summary: "练一次完整故障处理：复现、定位、修复、测试、记录。",
+        deliverable: "bug 复盘文档",
+        topics: ["最小复现", "错误分类", "日志定位", "修复验证", "复盘"],
+        practice: ["让 AI 制造一个小 bug", "你按流程定位并修复", "记录原因"],
+        acceptance: ["能复现问题", "能说清错误类型", "修复后测试通过"]
+      },
+      {
+        week: 11,
+        day: 3,
+        stage: "第 11 周 · AI 协作验收",
+        title: "整理项目文档和使用说明",
+        source: "CS50P · Style；MIT Missing Semester · Tools",
+        summary: "让一个月后的你还能看懂这个项目。文档是长期学习的保护措施。",
+        deliverable: "README v1",
+        topics: ["项目说明", "安装步骤", "运行命令", "测试命令", "常见问题"],
+        practice: ["完善 README", "写 3 个常见问题", "写下一次可扩展方向"],
+        acceptance: ["按 README 能重跑项目", "说明不依赖记忆", "常见错误有处理方式"]
+      },
+      {
+        week: 12,
+        day: 1,
+        stage: "第 12 周 · 总验收",
+        title: "从零重跑项目",
+        source: "12 周材料综合",
+        summary: "清空记忆感，从 README 开始重跑项目，检查它是否真的可维护。",
+        deliverable: "重跑检查记录",
+        topics: ["重新安装", "重新运行", "重新测试", "记录卡点"],
+        practice: ["按 README 重跑项目", "记录所有不清楚的地方", "修正文档"],
+        acceptance: ["能从 README 跑通", "能运行测试", "能修正至少 1 个文档缺口"]
+      },
+      {
+        week: 12,
+        day: 2,
+        stage: "第 12 周 · 总验收",
+        title: "AI 代码验收考试",
+        source: "12 周材料综合",
+        summary: "让 AI 提出一个新改动，你按完整流程验收。通过后说明这套能力已经成型。",
+        deliverable: "验收报告",
+        topics: ["需求拆分", "测试优先", "diff 审查", "日志检查", "提交"],
+        practice: ["让 AI 增加一个边界功能", "要求先测试再实现", "审查并提交"],
+        acceptance: ["能控制 AI 修改范围", "能读懂关键 diff", "测试和运行均通过"]
+      },
+      {
+        week: 12,
+        day: 3,
+        stage: "第 12 周 · 总验收",
+        title: "下一阶段分流：Python、Web、数据库或设计",
+        source: "12 周材料综合",
+        summary: "根据 12 周学习记录决定下一阶段，不在中途乱加方向。",
+        deliverable: "下一阶段计划",
+        topics: ["能力盘点", "薄弱点", "兴趣方向", "下一阶段主线"],
+        practice: ["整理 12 周产物", "让 AI 做能力诊断", "选择下一阶段路线"],
+        acceptance: ["能说清已掌握和未掌握", "有下一阶段 4 周计划", "不同时开启多个主线"]
+      }
+    ];
+
+    const defaultState = {
+      currentIndex: 0,
+      completed: [],
+      notes: [],
+      updatedAt: null
+    };
+
+    const storageKey = "ai-learning-assistant-state-v1";
+    const state = loadState();
+    const chatStoragePrefix = "ai-learning-assistant-chat-";
+    let hasApiKey = false;
+    let isBusy = false;
+
+    const els = {
+      lessonStage: document.querySelector("#lessonStage"),
+      lessonTitle: document.querySelector("#lessonTitle"),
+      lessonSummary: document.querySelector("#lessonSummary"),
+      lessonSource: document.querySelector("#lessonSource"),
+      lessonDeliverable: document.querySelector("#lessonDeliverable"),
+      lessonTopics: document.querySelector("#lessonTopics"),
+      lessonPractice: document.querySelector("#lessonPractice"),
+      lessonAcceptance: document.querySelector("#lessonAcceptance"),
+      sessionCounter: document.querySelector("#sessionCounter"),
+      progressBar: document.querySelector("#progressBar"),
+      progressText: document.querySelector("#progressText"),
+      startPrompt: document.querySelector("#startPrompt"),
+      reviewPrompt: document.querySelector("#reviewPrompt"),
+      checklist: document.querySelector("#checklist"),
+      apiStatus: document.querySelector("#apiStatus"),
+      serverRoot: document.querySelector("#serverRoot"),
+      apiSettings: document.querySelector("#apiSettings"),
+      apiKey: document.querySelector("#apiKey"),
+      apiModel: document.querySelector("#apiModel"),
+      chatLog: document.querySelector("#chatLog"),
+      chatInput: document.querySelector("#chatInput"),
+      assistantPanel: document.querySelector("#assistantPanel"),
+      validationPanel: document.querySelector("#validationPanel"),
+      submitPaths: document.querySelector("#submitPaths"),
+      submitOutput: document.querySelector("#submitOutput"),
+      submitNotes: document.querySelector("#submitNotes"),
+      validationResult: document.querySelector("#validationResult"),
+      noteTitle: document.querySelector("#noteTitle"),
+      noteBody: document.querySelector("#noteBody"),
+      lastNote: document.querySelector("#lastNote"),
+      stateBox: document.querySelector("#stateBox"),
+      toast: document.querySelector("#toast"),
+      confirmDialog: document.querySelector("#confirmDialog"),
+      dialogTitle: document.querySelector("#dialogTitle"),
+      dialogText: document.querySelector("#dialogText"),
+      dialogOk: document.querySelector("#dialogOk"),
+      dialogCancel: document.querySelector("#dialogCancel")
+    };
+
+    function loadState() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(storageKey));
+        if (!saved || typeof saved.currentIndex !== "number") {
+          return { ...defaultState };
+        }
+        return {
+          ...defaultState,
+          ...saved,
+          currentIndex: clamp(saved.currentIndex, 0, curriculum.length - 1),
+          completed: Array.isArray(saved.completed) ? saved.completed : [],
+          notes: Array.isArray(saved.notes) ? saved.notes : []
+        };
+      } catch {
+        return { ...defaultState };
+      }
+    }
+
+    function saveState() {
+      state.updatedAt = new Date().toISOString();
+      localStorage.setItem(storageKey, JSON.stringify(state));
+    }
+
+    function clamp(value, min, max) {
+      return Math.min(max, Math.max(min, value));
+    }
+
+    function list(items) {
+      return items.map((item) => `- ${item}`).join("\n");
+    }
+
+    function renderList(container, items) {
+      container.innerHTML = "";
+      items.forEach((item) => {
+        const li = document.createElement("li");
+        li.textContent = item;
+        container.appendChild(li);
+      });
+    }
+
+    function currentLesson() {
+      return curriculum[state.currentIndex];
+    }
+
+    function startPrompt(lesson) {
+      return `你是我的学习助手。我的目标不是转程序员，而是学会理解、运行、验收和维护 AI 生成的小型工具。
+
+请严格基于这些教材和资料教学，不要推荐新课程、新视频、新博客：
+1. Harvard CS50P
+2. MIT Missing Semester
+3. Pro Git
+4. Automate the Boring Stuff with Python, 3rd Edition
+5. Python / pandas / pytest / MDN 官方文档
+
+今天是我的当前进度：
+${lesson.stage}
+主题：${lesson.title}
+教材来源：${lesson.source}
+今日目标：${lesson.summary}
+今日产物：${lesson.deliverable}
+
+今天只学这些：
+${list(lesson.topics)}
+
+主练习：
+${list(lesson.practice)}
+
+通过标准：
+${list(lesson.acceptance)}
+
+请按以下方式带我学习：
+1. 只安排 30-45 分钟内容。
+2. 先用非科班、面向实际项目的方式解释必要概念。
+3. 给我明确操作步骤。
+4. 每一步都告诉我应该看到什么结果。
+5. 等我贴命令、代码、运行结果或报错后再继续。
+6. 如果我贴报错，先判断错误属于环境、路径、依赖、数据、配置、API、代码逻辑中的哪一类，再只给我下一步。
+7. 给一个主练习和一个 5 分钟变体练习。
+8. 结束时总结成今日笔记、掌握情况、下次任务。
+9. 不要一次性生成大项目，不要让我自己去开放式搜索资料。
+
+现在请开始今天的学习。`;
+    }
+
+    function reviewPrompt(lesson) {
+      return `请验收今天的学习结果。
+
+当前进度：
+${lesson.stage}
+主题：${lesson.title}
+今日产物：${lesson.deliverable}
+
+我会贴：
+1. 我完成的代码、命令或文件结构
+2. 运行结果
+3. 报错或疑问
+4. 我自己的理解
+
+请按以下格式反馈：
+- 是否通过
+- 哪里没通过
+- 必须修正什么
+- 哪些可以暂时不管
+- 今天应记录进笔记的 5 条内容
+- 下次学习任务
+
+验收时请对照这些通过标准：
+${list(lesson.acceptance)}`;
+    }
+
+    function renderChecklist(lesson) {
+      els.checklist.innerHTML = "";
+      lesson.acceptance.forEach((item, index) => {
+        const label = document.createElement("label");
+        label.className = "check-item";
+        const input = document.createElement("input");
+        input.type = "checkbox";
+        input.dataset.checkIndex = index;
+        const span = document.createElement("span");
+        span.textContent = item;
+        label.append(input, span);
+        els.checklist.appendChild(label);
+      });
+    }
+
+    function renderLastNote() {
+      const note = state.notes[state.notes.length - 1];
+      if (!note) {
+        els.lastNote.textContent = "还没有学习记录。完成一次练习后，把 AI 的验收结论记在这里。";
+        return;
+      }
+      const date = new Date(note.createdAt).toLocaleString("zh-CN");
+      els.lastNote.textContent = `最近记录：${date} · ${note.title || "未命名"} · ${note.body.slice(0, 80)}`;
+    }
+
+    function render() {
+      const lesson = currentLesson();
+      els.lessonStage.textContent = lesson.stage;
+      els.lessonTitle.textContent = lesson.title;
+      els.lessonSummary.textContent = lesson.summary;
+      els.lessonSource.textContent = lesson.source;
+      els.lessonDeliverable.textContent = lesson.deliverable;
+      els.sessionCounter.textContent = `第 ${state.currentIndex + 1} / ${curriculum.length} 次`;
+      renderList(els.lessonTopics, lesson.topics);
+      renderList(els.lessonPractice, lesson.practice);
+      renderList(els.lessonAcceptance, lesson.acceptance);
+      renderChecklist(lesson);
+      const percent = Math.round((state.currentIndex / curriculum.length) * 100);
+      els.progressBar.style.width = `${percent}%`;
+      els.progressText.textContent = `已完成 ${state.completed.length} 次；当前进度 ${percent}%`;
+      els.startPrompt.value = startPrompt(lesson);
+      els.reviewPrompt.value = reviewPrompt(lesson);
+      renderChat();
+      renderLastNote();
+      saveState();
+    }
+
+    async function copyText(text) {
+      try {
+        await navigator.clipboard.writeText(text);
+        showToast("已复制");
+      } catch {
+        const box = document.createElement("textarea");
+        box.value = text;
+        document.body.appendChild(box);
+        box.select();
+        document.execCommand("copy");
+        box.remove();
+        showToast("已复制");
+      }
+    }
+
+    async function apiRequest(path, payload) {
+      const response = await fetch(path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload || {})
+      });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok || json.ok === false) {
+        throw new Error(json.error || `请求失败：${response.status}`);
+      }
+      return json;
+    }
+
+    async function refreshApiStatus() {
+      try {
+        const response = await fetch("/api/health", { cache: "no-store" });
+        const json = await response.json();
+        hasApiKey = Boolean(json.hasApiKey);
+        els.apiStatus.textContent = hasApiKey ? `AI 已连接 · ${json.model}` : "首次使用：请填写 API Key";
+        els.apiStatus.classList.toggle("ready", hasApiKey);
+        els.serverRoot.textContent = json.root ? `学习目录：${json.root}` : "";
+        els.apiModel.value = json.model || "gpt-5-mini";
+        els.apiSettings.style.display = hasApiKey ? "none" : "grid";
+      } catch {
+        hasApiKey = false;
+        els.apiStatus.textContent = "本地服务未启动，请用“开始学习.bat”打开";
+        els.apiStatus.classList.remove("ready");
+        els.serverRoot.textContent = "";
+        els.apiSettings.style.display = "grid";
+      }
+    }
+
+    function chatKey() {
+      return `${chatStoragePrefix}${state.currentIndex}`;
+    }
+
+    function getChat() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(chatKey()));
+        return Array.isArray(saved) ? saved : [];
+      } catch {
+        return [];
+      }
+    }
+
+    function saveChat(messages) {
+      localStorage.setItem(chatKey(), JSON.stringify(messages.slice(-24)));
+    }
+
+    function renderChat() {
+      const messages = getChat();
+      els.chatLog.innerHTML = "";
+      if (messages.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "message assistant";
+        empty.textContent = "点击“开始/继续学习”，我会自动把当前课程进度发给 AI。你不需要复制提示词。";
+        els.chatLog.appendChild(empty);
+        return;
+      }
+      for (const message of messages) {
+        const item = document.createElement("div");
+        item.className = `message ${message.role === "assistant" ? "assistant" : "user"}`;
+        item.textContent = message.content;
+        els.chatLog.appendChild(item);
+      }
+      els.chatLog.scrollTop = els.chatLog.scrollHeight;
+    }
+
+    function setBusy(value, label) {
+      isBusy = value;
+      const buttons = [
+        "#startLearning",
+        "#startLearningTop",
+        "#sendMessage",
+        "#submitValidation",
+        "#saveSettings"
+      ].map((selector) => document.querySelector(selector)).filter(Boolean);
+      buttons.forEach((button) => {
+        button.disabled = value;
+      });
+      if (label) {
+        showToast(label);
+      }
+    }
+
+    async function sendTutorMessage(text, silentUserMessage = false) {
+      if (isBusy) {
+        return;
+      }
+      if (!hasApiKey) {
+        els.apiSettings.style.display = "grid";
+        showToast("请先保存 API Key");
+        return;
+      }
+      const messages = getChat();
+      const userMessage = { role: "user", content: text };
+      let apiMessages;
+      if (!silentUserMessage) {
+        messages.push(userMessage);
+        saveChat(messages);
+        renderChat();
+        apiMessages = messages;
+      } else {
+        apiMessages = [...messages, userMessage];
+      }
+      setBusy(true, "AI 正在回复");
+      try {
+        const response = await apiRequest("/api/chat", {
+          lesson: currentLesson(),
+          messages: apiMessages
+        });
+        const nextMessages = silentUserMessage ? messages : getChat();
+        nextMessages.push({ role: "assistant", content: response.message });
+        saveChat(nextMessages);
+        renderChat();
+      } catch (error) {
+        showToast(error.message);
+        const failed = getChat();
+        failed.push({ role: "assistant", content: `请求失败：${error.message}` });
+        saveChat(failed);
+        renderChat();
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    async function startLearning() {
+      await sendTutorMessage("请开始今天的学习。", true);
+    }
+
+    async function saveSettings() {
+      if (isBusy) {
+        return;
+      }
+      const apiKey = els.apiKey.value.trim();
+      const model = els.apiModel.value.trim() || "gpt-5-mini";
+      setBusy(true, "正在保存设置");
+      try {
+        await apiRequest("/api/settings", { apiKey, model });
+        els.apiKey.value = "";
+        await refreshApiStatus();
+        showToast("设置已保存");
+      } catch (error) {
+        showToast(error.message);
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    function advanceAfterValidation(result) {
+      if (!state.completed.includes(state.currentIndex)) {
+        state.completed.push(state.currentIndex);
+      }
+      const oldIndex = state.currentIndex;
+      if (state.currentIndex < curriculum.length - 1) {
+        state.currentIndex += 1;
+      }
+      state.notes.push({
+        sessionIndex: oldIndex,
+        lesson: curriculum[oldIndex].title,
+        title: "AI 验收通过",
+        body: [
+          result.summary || "",
+          ...(result.notes || []).map((item) => `- ${item}`)
+        ].filter(Boolean).join("\n"),
+        createdAt: new Date().toISOString()
+      });
+      saveState();
+      render();
+      showToast("验收通过，已进入下一次学习");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function validationText(result) {
+      const lines = [];
+      lines.push(result.passed ? "通过" : "未通过");
+      if (typeof result.score === "number") {
+        lines.push(`评分：${result.score}`);
+      }
+      if (result.summary) {
+        lines.push(`结论：${result.summary}`);
+      }
+      if (result.missing?.length) {
+        lines.push(`缺失：\n${result.missing.map((item) => `- ${item}`).join("\n")}`);
+      }
+      if (result.must_fix?.length) {
+        lines.push(`必须修正：\n${result.must_fix.map((item) => `- ${item}`).join("\n")}`);
+      }
+      if (result.can_ignore?.length) {
+        lines.push(`可以暂时不管：\n${result.can_ignore.map((item) => `- ${item}`).join("\n")}`);
+      }
+      if (result.notes?.length) {
+        lines.push(`记录：\n${result.notes.map((item) => `- ${item}`).join("\n")}`);
+      }
+      if (result.next_task) {
+        lines.push(`下一步：${result.next_task}`);
+      }
+      return lines.join("\n\n");
+    }
+
+    async function submitValidation() {
+      if (isBusy) {
+        return;
+      }
+      if (!hasApiKey) {
+        els.apiSettings.style.display = "grid";
+        showToast("请先保存 API Key");
+        return;
+      }
+      setBusy(true, "AI 正在验收");
+      els.validationResult.textContent = "正在读取提交材料并验收...";
+      try {
+        const response = await apiRequest("/api/validate", {
+          lesson: currentLesson(),
+          paths: els.submitPaths.value,
+          output: els.submitOutput.value,
+          notes: els.submitNotes.value
+        });
+        const result = response.result;
+        els.validationResult.textContent = validationText(result);
+        if (result.passed === true) {
+          els.submitPaths.value = "";
+          els.submitOutput.value = "";
+          els.submitNotes.value = "";
+          advanceAfterValidation(result);
+        }
+      } catch (error) {
+        els.validationResult.textContent = `验收失败：${error.message}`;
+        showToast(error.message);
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    function showToast(message) {
+      els.toast.textContent = message;
+      els.toast.classList.add("show");
+      window.setTimeout(() => els.toast.classList.remove("show"), 1600);
+    }
+
+    function allChecked() {
+      return [...els.checklist.querySelectorAll("input")].every((input) => input.checked);
+    }
+
+    function completeSession() {
+      if (!allChecked()) {
+        showToast("先勾选全部通过标准");
+        return;
+      }
+      if (!state.completed.includes(state.currentIndex)) {
+        state.completed.push(state.currentIndex);
+      }
+      if (state.currentIndex < curriculum.length - 1) {
+        state.currentIndex += 1;
+      }
+      saveState();
+      render();
+      showToast("已进入下一次学习");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function saveNote() {
+      const title = els.noteTitle.value.trim();
+      const body = els.noteBody.value.trim();
+      if (!title && !body) {
+        showToast("没有可保存的内容");
+        return;
+      }
+      state.notes.push({
+        sessionIndex: state.currentIndex,
+        lesson: currentLesson().title,
+        title,
+        body,
+        createdAt: new Date().toISOString()
+      });
+      els.noteTitle.value = "";
+      els.noteBody.value = "";
+      saveState();
+      renderLastNote();
+      showToast("学习记录已保存");
+    }
+
+    function showConfirm(title, text, onConfirm) {
+      els.dialogTitle.textContent = title;
+      els.dialogText.textContent = text;
+      const ok = () => {
+        cleanup();
+        els.confirmDialog.close();
+        onConfirm();
+      };
+      const cancel = () => {
+        cleanup();
+        els.confirmDialog.close();
+      };
+      const cleanup = () => {
+        els.dialogOk.removeEventListener("click", ok);
+        els.dialogCancel.removeEventListener("click", cancel);
+      };
+      els.dialogOk.addEventListener("click", ok);
+      els.dialogCancel.addEventListener("click", cancel);
+      els.confirmDialog.showModal();
+    }
+
+    function on(selector, event, handler) {
+      const target = document.querySelector(selector);
+      if (target) {
+        target.addEventListener(event, handler);
+      }
+    }
+
+    on("#copyStart", "click", () => copyText(els.startPrompt.value));
+    on("#copyReview", "click", () => copyText(els.reviewPrompt.value));
+    on("#startLearning", "click", startLearning);
+    on("#startLearningTop", "click", () => {
+      els.assistantPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+      startLearning();
+    });
+    on("#scrollSubmitTop", "click", () => {
+      els.validationPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    on("#saveSettings", "click", saveSettings);
+    on("#toggleSettings", "click", () => {
+      els.apiSettings.style.display = els.apiSettings.style.display === "none" ? "grid" : "none";
+    });
+    on("#sendMessage", "click", () => {
+      const text = els.chatInput.value.trim();
+      if (!text) {
+        showToast("先输入要发送的内容");
+        return;
+      }
+      els.chatInput.value = "";
+      sendTutorMessage(text);
+    });
+    on("#clearChat", "click", () => {
+      localStorage.removeItem(chatKey());
+      renderChat();
+      showToast("本次对话已清空");
+    });
+    on("#submitValidation", "click", submitValidation);
+    on("#chatInput", "keydown", (event) => {
+      if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+        event.preventDefault();
+        document.querySelector("#sendMessage").click();
+      }
+    });
+    document.querySelector("#completeSession").addEventListener("click", completeSession);
+    document.querySelector("#saveNote").addEventListener("click", saveNote);
+    document.querySelector("#openChatGPT").addEventListener("click", () => window.open("https://chatgpt.com/", "_blank", "noopener,noreferrer"));
+    document.querySelector("#prevSession").addEventListener("click", () => {
+      state.currentIndex = clamp(state.currentIndex - 1, 0, curriculum.length - 1);
+      saveState();
+      render();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+    document.querySelector("#nextSession").addEventListener("click", () => {
+      state.currentIndex = clamp(state.currentIndex + 1, 0, curriculum.length - 1);
+      saveState();
+      render();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+    document.querySelector("#exportState").addEventListener("click", () => {
+      els.stateBox.value = JSON.stringify(state, null, 2);
+      copyText(els.stateBox.value);
+    });
+    document.querySelector("#importState").addEventListener("click", () => {
+      try {
+        const imported = JSON.parse(els.stateBox.value);
+        if (typeof imported.currentIndex !== "number") {
+          throw new Error("missing currentIndex");
+        }
+        state.currentIndex = clamp(imported.currentIndex, 0, curriculum.length - 1);
+        state.completed = Array.isArray(imported.completed) ? imported.completed : [];
+        state.notes = Array.isArray(imported.notes) ? imported.notes : [];
+        saveState();
+        render();
+        showToast("进度已导入");
+      } catch {
+        showToast("导入失败：不是有效进度 JSON");
+      }
+    });
+    document.querySelector("#resetState").addEventListener("click", () => {
+      showConfirm("重置学习进度", "这会清空当前浏览器里的进度和学习记录。", () => {
+        Object.assign(state, { ...defaultState, completed: [], notes: [] });
+        saveState();
+        render();
+        showToast("已重置");
+      });
+    });
+
+    render();
+    refreshApiStatus();
+  </script>
+</body>
+</html>
