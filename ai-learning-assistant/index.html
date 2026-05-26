@@ -261,7 +261,7 @@
 
     .section-grid {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
       gap: 12px;
       margin-top: 18px;
     }
@@ -277,6 +277,19 @@
     .info-block h3 {
       font-size: 15px;
       margin-bottom: 10px;
+    }
+
+    .info-block p {
+      color: var(--muted);
+      line-height: 1.58;
+      margin-bottom: 10px;
+    }
+
+    .plan-list {
+      margin: 0;
+      padding-left: 20px;
+      color: var(--muted);
+      line-height: 1.62;
     }
 
     ul {
@@ -339,8 +352,9 @@
     }
 
     .chat-log {
-      min-height: 300px;
-      max-height: 520px;
+      height: clamp(640px, 74vh, 900px);
+      min-height: 640px;
+      max-height: none;
       overflow: auto;
       border: 1px solid var(--line);
       border-radius: var(--radius);
@@ -352,7 +366,7 @@
     }
 
     .message {
-      width: min(88%, 720px);
+      width: min(96%, 880px);
       padding: 12px 13px;
       border-radius: var(--radius);
       line-height: 1.62;
@@ -383,7 +397,7 @@
 
     .chat-compose textarea {
       margin: 0;
-      min-height: 86px;
+      min-height: 110px;
     }
 
     .validation-form {
@@ -482,6 +496,34 @@
       min-height: 110px;
     }
 
+    .note-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .note-card {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #fbfcfa;
+      padding: 12px;
+    }
+
+    .note-card strong {
+      display: block;
+      font-size: 14px;
+      margin-bottom: 6px;
+    }
+
+    .note-card pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: var(--muted);
+      line-height: 1.58;
+      font-family: inherit;
+      font-size: 13px;
+    }
+
     .small-text {
       font-size: 13px;
       color: var(--muted);
@@ -551,6 +593,11 @@
         grid-template-columns: 1fr;
       }
 
+      .chat-log {
+        height: clamp(560px, 70vh, 760px);
+        min-height: 560px;
+      }
+
       .settings-row,
       .chat-compose {
         grid-template-columns: 1fr;
@@ -582,6 +629,11 @@
         padding: 16px;
       }
 
+      .chat-log {
+        height: 68vh;
+        min-height: 460px;
+      }
+
       .toolbar,
       .top-actions {
         width: 100%;
@@ -605,7 +657,6 @@
       </div>
       <div class="top-actions">
         <button class="secondary" id="startLearningTop">开始学习</button>
-        <button class="ghost" id="scrollSubmitTop">提交验收</button>
       </div>
     </header>
 
@@ -649,16 +700,13 @@
 
           <div class="section-grid">
             <div class="info-block">
-              <h3>今天只学这些</h3>
+              <h3>本题知识点</h3>
+              <p id="lessonMaterialIntro"></p>
               <ul id="lessonTopics"></ul>
             </div>
             <div class="info-block">
-              <h3>主练习</h3>
-              <ul id="lessonPractice"></ul>
-            </div>
-            <div class="info-block">
-              <h3>通过标准</h3>
-              <ul id="lessonAcceptance"></ul>
+              <h3>学习计划</h3>
+              <ol class="plan-list" id="lessonPlan"></ol>
             </div>
           </div>
 
@@ -689,7 +737,7 @@
             </div>
           </section>
 
-          <section class="panel prompt-panel legacy">
+          <section class="panel prompt-panel legacy" id="manualStartPanel">
             <div class="panel-header">
               <h2>给 AI 的启动提示词</h2>
               <div class="toolbar">
@@ -703,7 +751,7 @@
             </div>
           </section>
 
-          <section class="panel prompt-panel legacy">
+          <section class="panel prompt-panel legacy" id="manualReviewPanel">
             <div class="panel-header">
               <h2>练习后的验收提示词</h2>
               <div class="toolbar">
@@ -719,32 +767,6 @@
       </section>
 
       <aside class="side-stack">
-        <section class="panel" id="validationPanel">
-          <div class="panel-header">
-            <h2>提交验收</h2>
-          </div>
-          <div class="panel-body">
-            <div class="validation-form">
-              <label>
-                提交文件或目录路径
-                <textarea id="submitPaths" placeholder="每行一个路径，默认相对 E:\1_project_manage\study。例如：
-hello_project
-hello_project\main.py"></textarea>
-              </label>
-              <label>
-                命令或运行输出
-                <textarea id="submitOutput" placeholder="粘贴运行命令、终端输出、报错或测试结果。"></textarea>
-              </label>
-              <label>
-                你的说明
-                <textarea id="submitNotes" placeholder="写你完成了什么、哪里不确定、希望 AI 重点验收什么。"></textarea>
-              </label>
-              <button id="submitValidation">提交给 AI 验收</button>
-              <div class="validation-result" id="validationResult">提交后，AI 会按当前课程通过标准验收；通过后自动进入下一次学习。</div>
-            </div>
-          </div>
-        </section>
-
         <section class="panel">
           <div class="panel-header">
             <h2>完成检查</h2>
@@ -752,29 +774,23 @@ hello_project\main.py"></textarea>
           <div class="panel-body">
             <div class="checklist" id="checklist"></div>
             <div class="divider"></div>
-            <button class="secondary" id="completeSession">备用：手动进入下一次</button>
-            <p class="small-text" style="margin-top: 10px;">正常情况用上面的“提交验收”。AI 判定通过后会自动推进，这里只作为备用。</p>
+            <button class="secondary" id="completeSession">结束今天并保存进度</button>
+            <p class="small-text" style="margin-top: 10px;">AI 已确认通过后，勾选这些标准并结束本次学习。</p>
           </div>
         </section>
 
         <section class="panel">
           <div class="panel-header">
-            <h2>学习记录</h2>
+            <h2>复习笔记</h2>
           </div>
           <div class="panel-body">
-            <div class="notes">
-              <input id="noteTitle" placeholder="今天的文件/练习名" />
-              <textarea id="noteBody" placeholder="记录报错、理解、AI 给你的结论"></textarea>
-              <button class="secondary" id="saveNote">保存本次记录</button>
-            </div>
-            <div class="divider"></div>
-            <p class="small-text" id="lastNote"></p>
+            <div class="note-list" id="autoNotes"></div>
           </div>
         </section>
 
         <section class="panel">
           <div class="panel-header">
-            <h2>进度管理</h2>
+            <h2>数据管理</h2>
           </div>
           <div class="panel-body">
             <div class="toolbar">
@@ -1262,9 +1278,9 @@ hello_project\main.py"></textarea>
       lessonSummary: document.querySelector("#lessonSummary"),
       lessonSource: document.querySelector("#lessonSource"),
       lessonDeliverable: document.querySelector("#lessonDeliverable"),
+      lessonMaterialIntro: document.querySelector("#lessonMaterialIntro"),
       lessonTopics: document.querySelector("#lessonTopics"),
-      lessonPractice: document.querySelector("#lessonPractice"),
-      lessonAcceptance: document.querySelector("#lessonAcceptance"),
+      lessonPlan: document.querySelector("#lessonPlan"),
       sessionCounter: document.querySelector("#sessionCounter"),
       progressBar: document.querySelector("#progressBar"),
       progressText: document.querySelector("#progressText"),
@@ -1279,14 +1295,9 @@ hello_project\main.py"></textarea>
       chatLog: document.querySelector("#chatLog"),
       chatInput: document.querySelector("#chatInput"),
       assistantPanel: document.querySelector("#assistantPanel"),
-      validationPanel: document.querySelector("#validationPanel"),
-      submitPaths: document.querySelector("#submitPaths"),
-      submitOutput: document.querySelector("#submitOutput"),
-      submitNotes: document.querySelector("#submitNotes"),
-      validationResult: document.querySelector("#validationResult"),
-      noteTitle: document.querySelector("#noteTitle"),
-      noteBody: document.querySelector("#noteBody"),
-      lastNote: document.querySelector("#lastNote"),
+      manualStartPanel: document.querySelector("#manualStartPanel"),
+      manualReviewPanel: document.querySelector("#manualReviewPanel"),
+      autoNotes: document.querySelector("#autoNotes"),
       stateBox: document.querySelector("#stateBox"),
       toast: document.querySelector("#toast"),
       confirmDialog: document.querySelector("#confirmDialog"),
@@ -1336,6 +1347,115 @@ hello_project\main.py"></textarea>
       });
     }
 
+    function lessonPlanItems(lesson) {
+      return [
+        `今天目标：${lesson.summary}`,
+        `任务路线：${(lesson.practice || []).join("；")}`,
+        `完成产物：${lesson.deliverable}`,
+        `完成检查：${(lesson.acceptance || []).join("；")}`
+      ];
+    }
+
+    function exerciseKnowledgeKey() {
+      return `ai-learning-assistant-exercise-knowledge-${state.currentIndex}`;
+    }
+
+    function getExerciseKnowledge() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(exerciseKnowledgeKey()));
+        if (saved && Array.isArray(saved.points)) {
+          return saved;
+        }
+      } catch {
+        return null;
+      }
+      return null;
+    }
+
+    function saveExerciseKnowledge(knowledge) {
+      if (!knowledge || !knowledge.points?.length) {
+        return;
+      }
+      localStorage.setItem(exerciseKnowledgeKey(), JSON.stringify({
+        intro: knowledge.intro || "AI 已根据当前练习整理对应知识点。",
+        points: knowledge.points.slice(0, 6),
+        updatedAt: new Date().toISOString()
+      }));
+    }
+
+    function extractExerciseKnowledge(text) {
+      const pattern = /(?:^|\n)【本题知识点】\s*\n([\s\S]*?)(?=\n【[^】]+】|$)/;
+      const match = text.match(pattern);
+      if (!match) {
+        return { message: text, knowledge: null };
+      }
+      const points = match[1]
+        .split(/\r?\n/)
+        .map((line) => line.replace(/^\s*[-*•\d.、]+/, "").trim())
+        .filter(Boolean);
+      const message = text
+        .replace(match[0], "")
+        .replace(/^\s*【当前任务】\s*/m, "")
+        .trim();
+      return {
+        message: message || text,
+        knowledge: {
+          intro: "这不是教材原文，是 AI 为当前练习整理的对应知识点。",
+          points
+        }
+      };
+    }
+
+    function simpleHash(text) {
+      let hash = 0;
+      for (let index = 0; index < text.length; index += 1) {
+        hash = ((hash << 5) - hash + text.charCodeAt(index)) | 0;
+      }
+      return Math.abs(hash).toString(36);
+    }
+
+    function extractReviewCard(text) {
+      const match = text.match(/(?:^|\n)【复习卡片】\s*\n([\s\S]*?)$/);
+      if (!match) {
+        return null;
+      }
+      const body = match[1].trim();
+      if (!body) {
+        return null;
+      }
+      return body;
+    }
+
+    function saveAutoReviewNote(text) {
+      const body = extractReviewCard(text);
+      if (!body) {
+        return false;
+      }
+      const id = `auto-${state.currentIndex}-${simpleHash(body)}`;
+      if (state.notes.some((note) => note.id === id)) {
+        return false;
+      }
+      state.notes.push({
+        id,
+        type: "auto",
+        sessionIndex: state.currentIndex,
+        lesson: currentLesson().title,
+        title: `AI 复习卡片 · ${currentLesson().title}`,
+        body,
+        createdAt: new Date().toISOString()
+      });
+      saveState();
+      return true;
+    }
+
+    function backfillReviewNotesFromChat() {
+      for (const message of getChat()) {
+        if (message.role === "assistant") {
+          saveAutoReviewNote(message.content || "");
+        }
+      }
+    }
+
     function currentLesson() {
       return curriculum[state.currentIndex];
     }
@@ -1366,16 +1486,36 @@ ${list(lesson.practice)}
 通过标准：
 ${list(lesson.acceptance)}
 
+页面上方有“本题知识点”和“学习计划”。
+“本题知识点”不是教材原文，而是你给当前练习配套整理的知识点。
+你的对话框只负责发当前任务、解释当前命令、根据我的结果答疑、决定下一步。
+我会直接在对话框里贴命令输出、报错、代码或本地文件路径；不要让我去单独的提交验收区。
+你判断练习通过后，告诉我去右侧“完成检查”勾选通过标准，并点击“结束今天并保存进度”。
+
 请按以下方式带我学习：
-1. 只安排 30-45 分钟内容。
-2. 先用非科班、面向实际项目的方式解释必要概念。
-3. 给我明确操作步骤。
-4. 每一步都告诉我应该看到什么结果。
-5. 等我贴命令、代码、运行结果或报错后再继续。
-6. 如果我贴报错，先判断错误属于环境、路径、依赖、数据、配置、API、代码逻辑中的哪一类，再只给我下一步。
-7. 给一个主练习和一个 5 分钟变体练习。
-8. 结束时总结成今日笔记、掌握情况、下次任务。
+1. 不要在对话框里重复长篇教材规划、完整学习计划或大段背景课文。
+2. 每次只推进一个小任务；最多给 2 条命令，然后等我贴结果。
+3. 给命令前，先用 1-2 句话解释为什么做这一步，以及每条命令是什么意思。例如 mkdir 是创建文件夹，cd 是进入文件夹。
+4. 每一步都告诉我应该看到什么结果，以及结果不一样时要贴什么。
+5. 我问概念时，短答即可：先给一句白话解释，再给一个和当前任务相关的小例子。
+6. 每次回复末尾都必须输出标题【复习卡片】，用 2-4 条短句记录本步知识点、命令含义、常见错误；页面会自动保存这块内容。
+7. 等我贴命令、代码、运行结果或报错后再继续。
+8. 如果我贴报错，先判断错误属于环境、路径、依赖、数据、配置、API、代码逻辑中的哪一类，再只给我下一步。
 9. 不要一次性生成大项目，不要让我自己去开放式搜索资料。
+
+每次给新练习或下一步任务时，必须先输出这个短块，让页面自动写入“本题知识点”：
+【本题知识点】
+- 这题练的是：...
+- 需要理解：...
+- 容易错：...
+
+然后再输出：
+【当前任务】
+...
+
+新课第一条回复只做两件事：
+1. 用 1 句话提醒我先看页面上方的“本题知识点”和“学习计划”。
+2. 给出第 1 个小任务，并解释相关命令。
 
 现在请开始今天的学习。`;
     }
@@ -1399,7 +1539,7 @@ ${lesson.stage}
 - 哪里没通过
 - 必须修正什么
 - 哪些可以暂时不管
-- 今天应记录进笔记的 5 条内容
+- 今天应保存到右侧“复习笔记”的 5 条内容，包含命令含义和容易忘的知识点
 - 下次学习任务
 
 验收时请对照这些通过标准：
@@ -1421,14 +1561,30 @@ ${list(lesson.acceptance)}`;
       });
     }
 
-    function renderLastNote() {
-      const note = state.notes[state.notes.length - 1];
-      if (!note) {
-        els.lastNote.textContent = "还没有学习记录。完成一次练习后，把 AI 的验收结论记在这里。";
+    function renderNotes() {
+      const notes = state.notes
+        .filter((note) => note.sessionIndex === state.currentIndex)
+        .slice(-8)
+        .reverse();
+      els.autoNotes.innerHTML = "";
+      if (notes.length === 0) {
+        const empty = document.createElement("p");
+        empty.className = "small-text";
+        empty.textContent = "AI 回复里的复习卡片会自动显示在这里。";
+        els.autoNotes.appendChild(empty);
         return;
       }
-      const date = new Date(note.createdAt).toLocaleString("zh-CN");
-      els.lastNote.textContent = `最近记录：${date} · ${note.title || "未命名"} · ${note.body.slice(0, 80)}`;
+      for (const note of notes) {
+        const item = document.createElement("article");
+        item.className = "note-card";
+        const title = document.createElement("strong");
+        const date = new Date(note.createdAt).toLocaleString("zh-CN");
+        title.textContent = `${note.title || "复习卡片"} · ${date}`;
+        const body = document.createElement("pre");
+        body.textContent = note.body || "";
+        item.append(title, body);
+        els.autoNotes.appendChild(item);
+      }
     }
 
     function render() {
@@ -1439,17 +1595,21 @@ ${list(lesson.acceptance)}`;
       els.lessonSource.textContent = lesson.source;
       els.lessonDeliverable.textContent = lesson.deliverable;
       els.sessionCounter.textContent = `第 ${state.currentIndex + 1} / ${curriculum.length} 次`;
-      renderList(els.lessonTopics, lesson.topics);
-      renderList(els.lessonPractice, lesson.practice);
-      renderList(els.lessonAcceptance, lesson.acceptance);
+      const exerciseKnowledge = getExerciseKnowledge();
+      els.lessonMaterialIntro.textContent = exerciseKnowledge
+        ? exerciseKnowledge.intro
+        : "开始学习后，AI 会把当前练习对应的知识点自动写到这里。";
+      renderList(els.lessonTopics, exerciseKnowledge?.points || ["等待 AI 发出当前练习"]);
+      renderList(els.lessonPlan, lessonPlanItems(lesson));
       renderChecklist(lesson);
       const percent = Math.round((state.currentIndex / curriculum.length) * 100);
       els.progressBar.style.width = `${percent}%`;
       els.progressText.textContent = `已完成 ${state.completed.length} 次；当前进度 ${percent}%`;
       els.startPrompt.value = startPrompt(lesson);
       els.reviewPrompt.value = reviewPrompt(lesson);
+      backfillReviewNotesFromChat();
       renderChat();
-      renderLastNote();
+      renderNotes();
       saveState();
     }
 
@@ -1466,6 +1626,47 @@ ${list(lesson.acceptance)}`;
         box.remove();
         showToast("已复制");
       }
+    }
+
+    function openChatGPT() {
+      const opened = window.open("https://chatgpt.com/", "_blank", "noopener,noreferrer");
+      if (!opened) {
+        showToast("已复制，请手动打开 ChatGPT");
+      }
+    }
+
+    function manualValidationPrompt() {
+      return [
+        els.reviewPrompt.value,
+        "",
+        "请我把命令、文件路径、运行输出或报错直接贴在这条消息后面，你按当前课程标准判断是否通过。"
+      ].join("\n");
+    }
+
+    async function openManualPrompt(text, panel, message) {
+      setManualModeEnabled(true);
+      if (panel) {
+        panel.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+      openChatGPT();
+      await copyText(text);
+      showToast(message);
+    }
+
+    async function openManualStart() {
+      await openManualPrompt(els.startPrompt.value, els.manualStartPanel, "已复制启动提示词，请粘贴到 ChatGPT");
+    }
+
+    async function openManualReview() {
+      await openManualPrompt(manualValidationPrompt(), els.manualReviewPanel, "已复制验收提示词，请粘贴到 ChatGPT");
+    }
+
+    function setManualModeEnabled(enabled) {
+      [els.manualStartPanel, els.manualReviewPanel].forEach((panel) => {
+        if (panel) {
+          panel.style.display = enabled ? "block" : "none";
+        }
+      });
     }
 
     async function apiRequest(path, payload) {
@@ -1485,23 +1686,31 @@ ${list(lesson.acceptance)}`;
       try {
         const response = await fetch("/api/health", { cache: "no-store" });
         const json = await response.json();
-        hasApiKey = Boolean(json.hasApiKey);
-        els.apiStatus.textContent = hasApiKey ? `AI 已连接 · ${json.model}` : "首次使用：请填写 API Key";
-        els.apiStatus.classList.toggle("ready", hasApiKey);
+        hasApiKey = Boolean(json.canUseInlineAI || json.hasApiKey);
+        const providerLabel = json.provider === "codex-openai" ? "Codex 已连接" : "AI 已连接";
+        els.apiStatus.textContent = hasApiKey ? `${providerLabel} · ${json.model}` : "免 API 模式：使用 ChatGPT 网页会员登录";
+        els.apiStatus.classList.add("ready");
         els.serverRoot.textContent = json.root ? `学习目录：${json.root}` : "";
         els.apiModel.value = json.model || "gpt-5-mini";
-        els.apiSettings.style.display = hasApiKey ? "none" : "grid";
+        els.apiSettings.style.display = "none";
+        setManualModeEnabled(!hasApiKey);
       } catch {
         hasApiKey = false;
-        els.apiStatus.textContent = "本地服务未启动，请用“开始学习.bat”打开";
-        els.apiStatus.classList.remove("ready");
+        els.apiStatus.textContent = "免 API 模式可用；自动对话需用“开始学习.bat”启动";
+        els.apiStatus.classList.add("ready");
         els.serverRoot.textContent = "";
-        els.apiSettings.style.display = "grid";
+        els.apiSettings.style.display = "none";
+        setManualModeEnabled(true);
       }
+      renderChat();
     }
 
     function chatKey() {
       return `${chatStoragePrefix}${state.currentIndex}`;
+    }
+
+    function chatSessionKey() {
+      return `lesson-${state.currentIndex}`;
     }
 
     function getChat() {
@@ -1514,7 +1723,7 @@ ${list(lesson.acceptance)}`;
     }
 
     function saveChat(messages) {
-      localStorage.setItem(chatKey(), JSON.stringify(messages.slice(-24)));
+      localStorage.setItem(chatKey(), JSON.stringify(messages.slice(-80)));
     }
 
     function renderChat() {
@@ -1523,7 +1732,9 @@ ${list(lesson.acceptance)}`;
       if (messages.length === 0) {
         const empty = document.createElement("div");
         empty.className = "message assistant";
-        empty.textContent = "点击“开始/继续学习”，我会自动把当前课程进度发给 AI。你不需要复制提示词。";
+        empty.textContent = hasApiKey
+          ? "点击“开始/继续学习”。本次对话会保留上下文；运行结果、报错和疑问都直接发在这里。"
+          : "免 API 模式：点击“开始/继续学习”会复制启动提示词并打开 ChatGPT；对话在 ChatGPT 网页里继续。";
         els.chatLog.appendChild(empty);
         return;
       }
@@ -1542,7 +1753,6 @@ ${list(lesson.acceptance)}`;
         "#startLearning",
         "#startLearningTop",
         "#sendMessage",
-        "#submitValidation",
         "#saveSettings"
       ].map((selector) => document.querySelector(selector)).filter(Boolean);
       buttons.forEach((button) => {
@@ -1558,8 +1768,9 @@ ${list(lesson.acceptance)}`;
         return;
       }
       if (!hasApiKey) {
-        els.apiSettings.style.display = "grid";
-        showToast("请先保存 API Key");
+        openChatGPT();
+        await copyText(text);
+        showToast("已复制消息，请粘贴到 ChatGPT");
         return;
       }
       const messages = getChat();
@@ -1577,11 +1788,18 @@ ${list(lesson.acceptance)}`;
       try {
         const response = await apiRequest("/api/chat", {
           lesson: currentLesson(),
+          sessionKey: chatSessionKey(),
           messages: apiMessages
         });
+        const processed = extractExerciseKnowledge(response.message);
+        if (processed.knowledge) {
+          saveExerciseKnowledge(processed.knowledge);
+        }
         const nextMessages = silentUserMessage ? messages : getChat();
-        nextMessages.push({ role: "assistant", content: response.message });
+        nextMessages.push({ role: "assistant", content: processed.message });
+        saveAutoReviewNote(processed.message);
         saveChat(nextMessages);
+        render();
         renderChat();
       } catch (error) {
         showToast(error.message);
@@ -1595,6 +1813,10 @@ ${list(lesson.acceptance)}`;
     }
 
     async function startLearning() {
+      if (!hasApiKey) {
+        await openManualStart();
+        return;
+      }
       await sendTutorMessage("请开始今天的学习。", true);
     }
 
@@ -1673,8 +1895,7 @@ ${list(lesson.acceptance)}`;
         return;
       }
       if (!hasApiKey) {
-        els.apiSettings.style.display = "grid";
-        showToast("请先保存 API Key");
+        await openManualReview();
         return;
       }
       setBusy(true, "AI 正在验收");
@@ -1725,7 +1946,7 @@ ${list(lesson.acceptance)}`;
       }
       saveState();
       render();
-      showToast("已进入下一次学习");
+      showToast("今天已结束，进度已保存");
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
 
@@ -1747,7 +1968,25 @@ ${list(lesson.acceptance)}`;
       els.noteBody.value = "";
       saveState();
       renderLastNote();
-      showToast("学习记录已保存");
+      showToast("复习笔记已保存");
+    }
+
+    function saveLastAssistantNote() {
+      const latest = [...getChat()].reverse().find((message) => message.role === "assistant");
+      if (!latest) {
+        showToast("还没有可保存的 AI 回复");
+        return;
+      }
+      state.notes.push({
+        sessionIndex: state.currentIndex,
+        lesson: currentLesson().title,
+        title: `AI 复习卡片 · ${currentLesson().title}`,
+        body: latest.content,
+        createdAt: new Date().toISOString()
+      });
+      saveState();
+      renderLastNote();
+      showToast("已保存最近 AI 回复");
     }
 
     function showConfirm(title, text, onConfirm) {
@@ -1779,14 +2018,11 @@ ${list(lesson.acceptance)}`;
     }
 
     on("#copyStart", "click", () => copyText(els.startPrompt.value));
-    on("#copyReview", "click", () => copyText(els.reviewPrompt.value));
+    on("#copyReview", "click", () => copyText(manualValidationPrompt()));
     on("#startLearning", "click", startLearning);
     on("#startLearningTop", "click", () => {
       els.assistantPanel.scrollIntoView({ behavior: "smooth", block: "start" });
       startLearning();
-    });
-    on("#scrollSubmitTop", "click", () => {
-      els.validationPanel.scrollIntoView({ behavior: "smooth", block: "start" });
     });
     on("#saveSettings", "click", saveSettings);
     on("#toggleSettings", "click", () => {
@@ -1801,12 +2037,18 @@ ${list(lesson.acceptance)}`;
       els.chatInput.value = "";
       sendTutorMessage(text);
     });
-    on("#clearChat", "click", () => {
+    on("#clearChat", "click", async () => {
       localStorage.removeItem(chatKey());
+      localStorage.removeItem(exerciseKnowledgeKey());
+      try {
+        await apiRequest("/api/session/reset", { sessionKey: chatSessionKey() });
+      } catch {
+        // The browser-side chat is still safe to clear if the server is offline.
+      }
+      render();
       renderChat();
       showToast("本次对话已清空");
     });
-    on("#submitValidation", "click", submitValidation);
     on("#chatInput", "keydown", (event) => {
       if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
         event.preventDefault();
@@ -1814,8 +2056,7 @@ ${list(lesson.acceptance)}`;
       }
     });
     document.querySelector("#completeSession").addEventListener("click", completeSession);
-    document.querySelector("#saveNote").addEventListener("click", saveNote);
-    document.querySelector("#openChatGPT").addEventListener("click", () => window.open("https://chatgpt.com/", "_blank", "noopener,noreferrer"));
+    document.querySelector("#openChatGPT").addEventListener("click", openChatGPT);
     document.querySelector("#prevSession").addEventListener("click", () => {
       state.currentIndex = clamp(state.currentIndex - 1, 0, curriculum.length - 1);
       saveState();

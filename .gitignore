@@ -1,4 +1,5 @@
 ai-learning-assistant/.env.local
+ai-learning-assistant/.codex-sessions.local.json
 node_modules/
 *.log
 .DS_Store

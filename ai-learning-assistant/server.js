@@ -1,6 +1,8 @@
 const fs = require("fs");
 const http = require("http");
+const os = require("os");
 const path = require("path");
+const { spawn } = require("child_process");
 const { URL } = require("url");
 
 const ROOT = path.resolve(__dirname, "..");
@@ -10,6 +12,11 @@ const LOCAL_ENV = path.join(APP_DIR, ".env.local");
 const MAX_BODY = 2 * 1024 * 1024;
 const MAX_FILE_BYTES = 80 * 1024;
 const MAX_FILES = 8;
+const CODEX_TIMEOUT_MS = Number(process.env.LEARNING_ASSISTANT_CODEX_TIMEOUT_MS || 180000);
+const CODEX_REASONING_EFFORT = process.env.LEARNING_ASSISTANT_CODEX_REASONING_EFFORT || "low";
+const MAX_HISTORY_MESSAGES = Number(process.env.LEARNING_ASSISTANT_HISTORY_MESSAGES || 40);
+const CODEX_HOME = process.env.CODEX_HOME || "D:\\1AI-Workbench\\project\\workbench\\workspace\\runtime\\.codex-home-official";
+const CODEX_SESSION_STORE = path.join(APP_DIR, ".codex-sessions.local.json");
 
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
@@ -67,6 +74,156 @@ function saveConfig({ apiKey, model }) {
   ].join("\n");
   fs.writeFileSync(LOCAL_ENV, content, "utf8");
   return next;
+}
+
+function findOnPath(commandName) {
+  const paths = String(process.env.PATH || "").split(path.delimiter).filter(Boolean);
+  const extensions = process.platform === "win32" ? [".ps1", ".cmd", ".bat", ".exe", ""] : [""];
+  for (const dir of paths) {
+    for (const extension of extensions) {
+      const candidate = path.join(dir, `${commandName}${extension}`);
+      if (fs.existsSync(candidate)) {
+        return candidate;
+      }
+    }
+  }
+  return "";
+}
+
+function getCodexCommand() {
+  const configured = process.env.LEARNING_ASSISTANT_CODEX_COMMAND;
+  if (configured && fs.existsSync(configured)) {
+    return configured;
+  }
+  const bundled = "D:\\Node\\node_global\\node_modules\\@openai\\codex\\bin\\codex.js";
+  if (fs.existsSync(bundled)) {
+    return bundled;
+  }
+  return findOnPath("codex") || findOnPath("codex-openai");
+}
+
+function codexProviderStatus() {
+  const command = getCodexCommand();
+  return {
+    available: Boolean(command),
+    command
+  };
+}
+
+function readCodexSessionStore() {
+  try {
+    if (!fs.existsSync(CODEX_SESSION_STORE)) {
+      return {};
+    }
+    const parsed = JSON.parse(fs.readFileSync(CODEX_SESSION_STORE, "utf8"));
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeCodexSessionStore(store) {
+  fs.writeFileSync(CODEX_SESSION_STORE, JSON.stringify(store, null, 2), "utf8");
+}
+
+function normalizeSessionKey(key) {
+  return String(key || "").trim().slice(0, 120);
+}
+
+function getCodexSessionId(sessionKey) {
+  const key = normalizeSessionKey(sessionKey);
+  if (!key) {
+    return "";
+  }
+  return readCodexSessionStore()[key]?.sessionId || "";
+}
+
+function saveCodexSessionId(sessionKey, sessionId) {
+  const key = normalizeSessionKey(sessionKey);
+  if (!key || !sessionId) {
+    return;
+  }
+  const store = readCodexSessionStore();
+  store[key] = {
+    sessionId,
+    updatedAt: new Date().toISOString()
+  };
+  writeCodexSessionStore(store);
+}
+
+function deleteCodexSessionId(sessionKey) {
+  const key = normalizeSessionKey(sessionKey);
+  if (!key) {
+    return;
+  }
+  const store = readCodexSessionStore();
+  delete store[key];
+  writeCodexSessionStore(store);
+}
+
+function killProcessTree(child) {
+  if (!child.pid || child.killed) {
+    return;
+  }
+  if (process.platform === "win32") {
+    spawn("taskkill", ["/pid", String(child.pid), "/t", "/f"], {
+      windowsHide: true,
+      stdio: "ignore"
+    });
+    return;
+  }
+  child.kill();
+}
+
+function listSessionFiles(dir = path.join(CODEX_HOME, "sessions")) {
+  const files = [];
+  if (!fs.existsSync(dir)) {
+    return files;
+  }
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const item = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...listSessionFiles(item));
+    } else if (entry.isFile() && entry.name.endsWith(".jsonl")) {
+      files.push(item);
+    }
+  }
+  return files;
+}
+
+function sessionIdFromFile(filePath) {
+  const match = path.basename(filePath).match(/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$/i);
+  return match ? match[1] : "";
+}
+
+function findCodexSessionIdByMarker(marker, startedAtMs) {
+  if (!marker) {
+    return "";
+  }
+  const candidates = listSessionFiles()
+    .map((filePath) => {
+      try {
+        return { filePath, stat: fs.statSync(filePath) };
+      } catch {
+        return null;
+      }
+    })
+    .filter(Boolean)
+    .filter((item) => item.stat.mtimeMs >= startedAtMs - 2000)
+    .sort((a, b) => b.stat.mtimeMs - a.stat.mtimeMs)
+    .slice(0, 20);
+
+  for (const item of candidates) {
+    try {
+      const content = fs.readFileSync(item.filePath, "utf8");
+      if (content.includes(marker)) {
+        return sessionIdFromFile(item.filePath);
+      }
+    } catch {
+      // Ignore unreadable session files.
+    }
+  }
+  return "";
 }
 
 function send(res, status, data, contentType = "application/json; charset=utf-8") {
@@ -169,6 +326,70 @@ function readSubmittedFiles(paths) {
   return files;
 }
 
+function looksLikeLocalPath(value) {
+  const text = String(value || "").trim();
+  if (!text || text.length > 260 || /[\r\n]/.test(text)) {
+    return false;
+  }
+  if (/[\\/]/.test(text) || text.startsWith(".") || /^[A-Za-z]:[\\/]/.test(text)) {
+    return true;
+  }
+  return /\.(py|js|html|css|json|md|txt|csv|toml|yaml|yml|bat|ps1|ts|tsx|jsx)$/i.test(text);
+}
+
+function extractChatSubmittedPaths(text) {
+  const paths = [];
+  const lines = String(text || "").split(/\r?\n/);
+  for (const line of lines) {
+    const cleaned = line
+      .replace(/^[\s>*-]*(请)?(检查|读取|看一下|打开)?\s*(文件|目录|路径|项目)?\s*[:：]?\s*/u, "")
+      .trim()
+      .replace(/^["'`]|["'`]$/g, "");
+    if (!cleaned || !looksLikeLocalPath(cleaned)) {
+      continue;
+    }
+    try {
+      const resolved = resolveSubmittedPath(cleaned);
+      if (resolved && fs.existsSync(resolved)) {
+        paths.push(cleaned);
+      }
+    } catch {
+      // Ignore text that only looks like a path.
+    }
+    if (paths.length >= MAX_FILES) {
+      break;
+    }
+  }
+  return [...new Set(paths)];
+}
+
+function attachChatSubmittedFiles(messages) {
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return messages;
+  }
+  const lastIndex = messages.length - 1;
+  const last = messages[lastIndex];
+  if (!last || last.role !== "user") {
+    return messages;
+  }
+  const paths = extractChatSubmittedPaths(last.content);
+  if (paths.length === 0) {
+    return messages;
+  }
+  const files = readSubmittedFiles(paths.join("\n"));
+  return messages.map((message, index) => index === lastIndex
+    ? {
+      ...message,
+      content: [
+        message.content,
+        "",
+        "本地文件读取结果：",
+        JSON.stringify(files, null, 2)
+      ].join("\n")
+    }
+    : message);
+}
+
 function lessonBlock(lesson) {
   return [
     `当前课程：${lesson.stage || ""}`,
@@ -198,15 +419,37 @@ function tutorInstructions(lesson) {
 4. Automate the Boring Stuff with Python, 3rd Edition
 5. Python / pandas / pytest / MDN 官方文档
 
-教学规则：
-1. 每次只推进 30-45 分钟内容。
-2. 用非科班、面向实际项目的方式解释必要概念。
-3. 给出明确操作步骤，每一步说明应该看到什么结果。
-4. 用户贴命令、代码、运行结果或报错后，再继续下一步。
-5. 如果用户贴报错，先判断错误属于环境、路径、依赖、数据、配置、API、代码逻辑中的哪一类，再只给下一步。
-6. 给一个主练习和一个 5 分钟变体练习。
-7. 结束时总结今日笔记、掌握情况、下次任务。
-8. 不要一次性生成大项目，不要让用户开放式搜索资料。
+页面职责：
+- 页面上方有“本题知识点”和“学习计划”。
+- “本题知识点”不是教材原文，而是你给当前练习配套整理的知识点。
+- 你所在的对话框只负责：发当前任务、解释当前命令、根据用户贴的结果答疑、决定下一步。
+- 用户可以直接在对话框里贴命令输出、报错、代码或本地文件路径；不要引导用户去单独的提交验收区。
+- 你判断练习通过后，告诉用户去右侧“完成检查”勾选通过标准，并点击“结束今天并保存进度”。
+
+对话规则：
+1. 不要在对话框里重复长篇教材规划、完整学习计划或大段背景课文。
+2. 每次只推进一个小任务；最多给 2 条命令，然后等待用户贴结果。
+3. 给出命令前，必须先用 1-2 句话解释“为什么做这一步”和“每条命令是什么意思”。例如 mkdir 是创建文件夹，cd 是进入文件夹。
+4. 每一步说明应该看到什么结果，以及结果不一样时下一步该贴什么。
+5. 用户问概念时，短答即可：先给一句白话解释，再给一个和当前任务相关的小例子。
+6. 每次回复末尾都必须输出标题【复习卡片】，用 2-4 条短句记录本步知识点、命令含义、常见错误；页面会自动保存这块内容。
+7. 用户贴命令、代码、运行结果或报错后，再继续下一步。
+8. 如果用户贴报错，先判断错误属于环境、路径、依赖、数据、配置、API、代码逻辑中的哪一类，再只给下一步。
+9. 不要一次性生成大项目，不要让用户开放式搜索资料。
+
+每次给新练习或下一步任务时，必须先输出这个短块，让页面自动写入“本题知识点”：
+【本题知识点】
+- 这题练的是：...
+- 需要理解：...
+- 容易错：...
+
+然后再输出：
+【当前任务】
+...
+
+新课第一条回复只做两件事：
+1. 用 1 句话指出先看页面上方的“本题知识点”和“学习计划”。
+2. 给出第 1 个小任务，并解释相关命令。
 
 ${lessonBlock(lesson)}`;
 }
@@ -218,7 +461,7 @@ function validationInstructions(lesson) {
 1. 不因为用户努力就放宽标准。
 2. 不要求当前课程范围之外的内容。
 3. 如果证据不足，passed 必须为 false，并说明还需要提交什么。
-4. 如果通过，notes 给出 3-5 条应该写入学习记录的内容。
+4. 如果通过，notes 给出 3-5 条应该写入页面右侧“复习笔记”的内容，必须包含本次用到的命令含义和容易忘的知识点。
 5. 只返回 JSON，不要输出 Markdown。
 
 JSON 格式：
@@ -242,10 +485,10 @@ function normalizeMessages(messages) {
   }
   return messages
     .filter((message) => message && typeof message.content === "string")
-    .slice(-16)
+    .slice(-MAX_HISTORY_MESSAGES)
     .map((message) => ({
       role: message.role === "assistant" ? "assistant" : "user",
-      content: message.content.slice(0, 12000)
+      content: message.content.slice(0, 8000)
     }));
 }
 
@@ -264,6 +507,201 @@ function extractOutputText(response) {
     }
   }
   return chunks.join("\n").trim();
+}
+
+function formatCodexInput(input) {
+  if (Array.isArray(input)) {
+    return input
+      .map((message) => {
+        const role = message.role === "assistant" ? "assistant" : "user";
+        return `${role}:\n${message.content || ""}`;
+      })
+      .join("\n\n");
+  }
+  if (typeof input === "string") {
+    return input;
+  }
+  return JSON.stringify(input, null, 2);
+}
+
+function latestInputForCodex(input) {
+  if (Array.isArray(input)) {
+    return formatCodexInput(input.slice(-1));
+  }
+  return formatCodexInput(input);
+}
+
+function runCodex(prompt, { sessionKey = "", sessionId = "", marker = "" } = {}) {
+  const codex = codexProviderStatus();
+  if (!codex.available) {
+    const error = new Error("未找到 codex-openai 或 codex 命令");
+    error.status = 400;
+    throw error;
+  }
+
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "ai-learning-codex-"));
+  const outputFile = path.join(tempDir, "last-message.txt");
+  const startedAtMs = Date.now();
+  const isPowerShellScript = process.platform === "win32" && codex.command.toLowerCase().endsWith(".ps1");
+  const isCodexJs = codex.command.toLowerCase().endsWith(`${path.sep}codex.js`);
+  const command = isPowerShellScript ? "powershell.exe" : (isCodexJs ? process.execPath : codex.command);
+  const args = isPowerShellScript
+    ? ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", codex.command]
+    : (isCodexJs ? [codex.command] : []);
+  args.push("-c", `model_reasoning_effort="${CODEX_REASONING_EFFORT}"`, "exec");
+  if (sessionId) {
+    args.push(
+      "resume",
+      "--output-last-message",
+      outputFile,
+      sessionId,
+      "-"
+    );
+  } else {
+    args.push(
+      "--cd",
+      ROOT,
+      "--sandbox",
+      "read-only",
+      "--output-last-message",
+      outputFile,
+      "--color",
+      "never",
+      "-"
+    );
+  }
+
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      cwd: ROOT,
+      env: {
+        ...process.env,
+        CODEX_HOME
+      },
+      windowsHide: true,
+      stdio: ["pipe", "pipe", "pipe"]
+    });
+
+    let stdout = "";
+    let stderr = "";
+    let settled = false;
+    let poller;
+    const cleanup = () => {
+      clearTimeout(timer);
+      clearInterval(poller);
+      fs.rm(tempDir, { recursive: true, force: true }, () => {});
+    };
+    const finishWithOutput = (output) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      if (sessionKey && !sessionId) {
+        try {
+          const discoveredSessionId = findCodexSessionIdByMarker(marker, startedAtMs);
+          if (discoveredSessionId) {
+            saveCodexSessionId(sessionKey, discoveredSessionId);
+          }
+        } catch {
+          // Missing persistence only affects future continuity; keep the current answer.
+        }
+      }
+      cleanup();
+      killProcessTree(child);
+      resolve(output);
+    };
+    const finishWithError = (error) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      cleanup();
+      killProcessTree(child);
+      reject(error);
+    };
+    const timer = setTimeout(() => {
+      const error = new Error("Codex 响应超时，请稍后重试或减少提交内容");
+      error.status = 504;
+      finishWithError(error);
+    }, CODEX_TIMEOUT_MS);
+    poller = setInterval(() => {
+      if (!fs.existsSync(outputFile)) {
+        return;
+      }
+      const output = fs.readFileSync(outputFile, "utf8").trim();
+      if (output) {
+        finishWithOutput(output);
+      }
+    }, 1000);
+
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk.toString("utf8");
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString("utf8");
+    });
+    child.on("error", (error) => {
+      finishWithError(error);
+    });
+    child.on("close", (code) => {
+      if (settled) {
+        return;
+      }
+      const output = fs.existsSync(outputFile) ? fs.readFileSync(outputFile, "utf8").trim() : stdout.trim();
+      if (code !== 0) {
+        const message = stderr.trim() || stdout.trim() || `Codex 调用失败：${code}`;
+        const error = new Error(message);
+        error.status = 502;
+        finishWithError(error);
+        return;
+      }
+      finishWithOutput(output);
+    });
+
+    child.stdin.end(prompt, "utf8");
+  });
+}
+
+async function callCodex({ instructions, input, sessionKey }) {
+  const normalizedSessionKey = normalizeSessionKey(sessionKey);
+  const existingSessionId = normalizedSessionKey ? getCodexSessionId(normalizedSessionKey) : "";
+  const marker = normalizedSessionKey ? `AI_LEARNING_SESSION:${normalizedSessionKey}:${Date.now()}` : "";
+
+  if (existingSessionId) {
+    const prompt = [
+      marker ? `Internal session marker, do not mention it: ${marker}` : "",
+      "Continue this local Chinese learning assistant conversation.",
+      "You already have the previous context. The text below is only the current user input.",
+      "Do not restart the lesson. Do not repeat tasks that have already been completed.",
+      "",
+      "Current user input:",
+      latestInputForCodex(input)
+    ].filter(Boolean).join("\n");
+    return runCodex(prompt, {
+      sessionKey: normalizedSessionKey,
+      sessionId: existingSessionId,
+      marker
+    });
+  }
+
+  const prompt = [
+    marker ? `Internal session marker, do not mention it: ${marker}` : "",
+    "你是这个本地学习助手网页背后的 AI。",
+    "只根据下面的教学规则和用户材料回复。",
+    "你会收到最近对话历史，顺序是从旧到新；最后一条 user 才是当前输入。",
+    "必须接着最近对话往下走，不要重置课程，不要重复已经完成或已经解释过的任务。",
+    "如果用户已经贴了运行结果，就先判断这个结果，再给下一步；不要再次要求用户运行同一条命令。",
+    "不要修改文件，不要运行命令，不要要求用户提供 API Key。",
+    "如果需要验收并且规则要求 JSON，就只返回 JSON。",
+    "",
+    "教学规则：",
+    instructions,
+    "",
+    "最近对话和当前输入：",
+    formatCodexInput(input)
+  ].join("\n");
+
+  return runCodex(prompt, { sessionKey: normalizedSessionKey, marker });
 }
 
 async function callOpenAI({ instructions, input, maxOutputTokens = 1800 }) {
@@ -298,6 +736,21 @@ async function callOpenAI({ instructions, input, maxOutputTokens = 1800 }) {
   return extractOutputText(json);
 }
 
+async function callAi(options) {
+  const config = getConfig();
+  if (codexProviderStatus().available) {
+    try {
+      return await callCodex(options);
+    } catch (error) {
+      if (!config.apiKey) {
+        throw error;
+      }
+      console.error(`Codex 调用失败，改用 OpenAI API：${error.message}`);
+    }
+  }
+  return callOpenAI(options);
+}
+
 function parseValidation(text) {
   try {
     return JSON.parse(text);
@@ -313,10 +766,15 @@ function parseValidation(text) {
 async function handleApi(req, res, pathname) {
   if (req.method === "GET" && pathname === "/api/health") {
     const config = getConfig();
+    const codex = codexProviderStatus();
+    const provider = codex.available ? "codex-openai" : (config.apiKey ? "openai-api" : "manual");
     send(res, 200, {
       ok: true,
+      provider,
+      canUseInlineAI: codex.available || Boolean(config.apiKey),
+      hasCodexCli: codex.available,
       hasApiKey: Boolean(config.apiKey),
-      model: config.model,
+      model: codex.available ? "codex-openai" : config.model,
       root: ROOT
     });
     return;
@@ -331,7 +789,22 @@ async function handleApi(req, res, pathname) {
       return;
     }
     const config = saveConfig({ apiKey, model });
-    send(res, 200, { ok: true, hasApiKey: Boolean(config.apiKey), model: config.model });
+    const codex = codexProviderStatus();
+    send(res, 200, {
+      ok: true,
+      provider: codex.available ? "codex-openai" : "openai-api",
+      canUseInlineAI: true,
+      hasCodexCli: codex.available,
+      hasApiKey: Boolean(config.apiKey),
+      model: codex.available ? "codex-openai" : config.model
+    });
+    return;
+  }
+
+  if (req.method === "POST" && pathname === "/api/session/reset") {
+    const body = await readBody(req);
+    deleteCodexSessionId(body.sessionKey);
+    send(res, 200, { ok: true });
     return;
   }
 
@@ -339,9 +812,12 @@ async function handleApi(req, res, pathname) {
     const body = await readBody(req);
     const lesson = body.lesson || {};
     const messages = normalizeMessages(body.messages);
-    const text = await callOpenAI({
+    const sessionKey = body.sessionKey || `${lesson.stage || ""}:${lesson.title || ""}`;
+    const input = attachChatSubmittedFiles(messages);
+    const text = await callAi({
       instructions: tutorInstructions(lesson),
-      input: messages,
+      input,
+      sessionKey,
       maxOutputTokens: 2200
     });
     send(res, 200, { ok: true, message: text });
@@ -362,7 +838,7 @@ async function handleApi(req, res, pathname) {
       "提交文件：",
       JSON.stringify(files, null, 2)
     ].join("\n");
-    const raw = await callOpenAI({
+    const raw = await callAi({
       instructions: validationInstructions(lesson),
       input: evidence,
       maxOutputTokens: 1600
