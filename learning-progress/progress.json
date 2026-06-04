@@ -1,9 +1,9 @@
 {
   "version": 1,
   "app": "ai-learning-assistant",
-  "savedAt": "2026-06-04T17:18:44.125Z",
+  "savedAt": "2026-06-04T17:18:47.027Z",
   "state": {
-    "currentIndex": 2,
+    "currentIndex": 3,
     "completed": [
       0,
       1,
@@ -31,7 +31,7 @@
         "updatedAt": "2026-06-04T17:04:57.406Z"
       }
     ],
-    "updatedAt": "2026-06-04T17:18:33.779Z"
+    "updatedAt": "2026-06-04T17:18:47.025Z"
   },
   "chats": {
     "0": [
