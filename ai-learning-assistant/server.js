@@ -9,7 +9,7 @@ const ROOT = path.resolve(__dirname, "..");
 const APP_DIR = __dirname;
 const PORT = Number(process.env.LEARNING_ASSISTANT_PORT || 43117);
 const LOCAL_ENV = path.join(APP_DIR, ".env.local");
-const MAX_BODY = 2 * 1024 * 1024;
+const MAX_BODY = 10 * 1024 * 1024;
 const MAX_FILE_BYTES = 80 * 1024;
 const MAX_FILES = 8;
 const CODEX_TIMEOUT_MS = Number(process.env.LEARNING_ASSISTANT_CODEX_TIMEOUT_MS || 180000);
@@ -17,6 +17,8 @@ const CODEX_REASONING_EFFORT = process.env.LEARNING_ASSISTANT_CODEX_REASONING_EF
 const MAX_HISTORY_MESSAGES = Number(process.env.LEARNING_ASSISTANT_HISTORY_MESSAGES || 40);
 const CODEX_HOME = process.env.CODEX_HOME || "D:\\1AI-Workbench\\project\\workbench\\workspace\\runtime\\.codex-home-official";
 const CODEX_SESSION_STORE = path.join(APP_DIR, ".codex-sessions.local.json");
+const PROGRESS_DIR = path.join(ROOT, "learning-progress");
+const PROGRESS_FILE = path.join(PROGRESS_DIR, "progress.json");
 
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
@@ -173,6 +175,122 @@ function killProcessTree(child) {
     return;
   }
   child.kill();
+}
+
+function runLocalCommand(command, args, options = {}) {
+  const timeout = options.timeout || 120000;
+  const allowNonZero = Boolean(options.allowNonZero);
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      cwd: ROOT,
+      env: {
+        ...process.env,
+        GIT_TERMINAL_PROMPT: "0",
+        GCM_INTERACTIVE: "never"
+      },
+      windowsHide: true,
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    let stdout = "";
+    let stderr = "";
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      killProcessTree(child);
+      const error = new Error(`${command} ${args.join(" ")} timed out`);
+      error.stdout = stdout;
+      error.stderr = stderr;
+      reject(error);
+    }, timeout);
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk.toString("utf8");
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString("utf8");
+    });
+    child.on("error", (error) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timer);
+      reject(error);
+    });
+    child.on("close", (code) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timer);
+      const result = { code, stdout: stdout.trim(), stderr: stderr.trim() };
+      if (code !== 0 && !allowNonZero) {
+        const error = new Error(result.stderr || result.stdout || `${command} exited with code ${code}`);
+        Object.assign(error, result);
+        reject(error);
+        return;
+      }
+      resolve(result);
+    });
+  });
+}
+
+function readProgressSnapshot() {
+  try {
+    if (!fs.existsSync(PROGRESS_FILE)) {
+      return null;
+    }
+    return JSON.parse(fs.readFileSync(PROGRESS_FILE, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function writeProgressSnapshot(snapshot) {
+  fs.mkdirSync(PROGRESS_DIR, { recursive: true });
+  const content = JSON.stringify({
+    ...snapshot,
+    savedAt: new Date().toISOString()
+  }, null, 2);
+  fs.writeFileSync(PROGRESS_FILE, `${content}\n`, "utf8");
+}
+
+async function gitSyncProgress(reason) {
+  const branchResult = await runLocalCommand("git", ["branch", "--show-current"], { timeout: 30000 });
+  const branch = branchResult.stdout || "main";
+  await runLocalCommand("git", ["add", "-A"], { timeout: 60000 });
+  const diff = await runLocalCommand("git", ["diff", "--cached", "--quiet"], {
+    timeout: 30000,
+    allowNonZero: true
+  });
+  if (diff.code === 0) {
+    return {
+      committed: false,
+      pushed: false,
+      branch,
+      message: "No changes to sync"
+    };
+  }
+  if (diff.code !== 1) {
+    throw new Error(diff.stderr || diff.stdout || "git diff failed");
+  }
+  const stamp = new Date().toISOString().slice(0, 19).replace("T", " ");
+  const message = reason ? `Sync learning progress: ${reason}` : `Sync learning progress ${stamp}`;
+  const commit = await runLocalCommand("git", ["commit", "-m", message], { timeout: 120000 });
+  const push = await runLocalCommand("git", ["push", "origin", branch], {
+    timeout: 120000,
+    allowNonZero: true
+  });
+  return {
+    committed: true,
+    commit: commit.stdout || commit.stderr,
+    pushed: push.code === 0,
+    branch,
+    pushOutput: push.stdout || push.stderr,
+    pushError: push.code === 0 ? "" : (push.stderr || push.stdout || `git push exited with code ${push.code}`)
+  };
 }
 
 function listSessionFiles(dir = path.join(CODEX_HOME, "sessions")) {
@@ -391,7 +509,7 @@ function attachChatSubmittedFiles(messages) {
 }
 
 function lessonBlock(lesson) {
-  return [
+  const lines = [
     `当前课程：${lesson.stage || ""}`,
     `主题：${lesson.title || ""}`,
     `教材来源：${lesson.source || ""}`,
@@ -406,7 +524,26 @@ function lessonBlock(lesson) {
     "",
     "通过标准：",
     ...(lesson.acceptance || []).map((item) => `- ${item}`)
-  ].join("\n");
+  ];
+  if (lesson.dailyReview) {
+    lines.push(
+      "",
+      "课前复习（必须先做）：",
+      `- 复习上一天：${lesson.dailyReview.title}`,
+      `- 先出 2 个小检查题，覆盖：${(lesson.dailyReview.topics || []).join("、")}`,
+      "- 用户回答后再进入今天的新任务"
+    );
+  }
+  if (lesson.weeklyReview) {
+    lines.push(
+      "",
+      "本周综合练习（本周最后一天必须做）：",
+      `- 第 ${lesson.weeklyReview.week} 周周总练习`,
+      ...((lesson.weeklyReview.lessons || []).map((item) => `- D${item.day} ${item.title}：${(item.topics || []).join("、")}`)),
+      "- 今天核心任务通过后，再安排 1 个覆盖本周 3 天能力的综合练习"
+    );
+  }
+  return lines.join("\n");
 }
 
 function tutorInstructions(lesson) {
@@ -425,6 +562,8 @@ function tutorInstructions(lesson) {
 - 你所在的对话框只负责：发当前任务、解释当前命令、根据用户贴的结果答疑、决定下一步。
 - 用户可以直接在对话框里贴命令输出、报错、代码或本地文件路径；不要引导用户去单独的提交验收区。
 - 你判断练习通过后，告诉用户去右侧“完成检查”勾选通过标准，并点击“结束今天并保存进度”。
+- 如果课程上下文包含“课前复习”，第一步必须先出 2 个前一天复习小题，等用户答完再进入今天新任务。
+- 如果课程上下文包含“本周综合练习”，今天核心任务通过后必须再安排 1 个周总练习，覆盖本周 3 天能力。
 
 对话规则：
 1. 不要在对话框里重复长篇教材规划、完整学习计划或大段背景课文。
@@ -432,7 +571,7 @@ function tutorInstructions(lesson) {
 3. 给出命令前，必须先用 1-2 句话解释“为什么做这一步”和“每条命令是什么意思”。例如 mkdir 是创建文件夹，cd 是进入文件夹。
 4. 每一步说明应该看到什么结果，以及结果不一样时下一步该贴什么。
 5. 用户问概念时，短答即可：先给一句白话解释，再给一个和当前任务相关的小例子。
-6. 每次回复末尾都必须输出标题【复习卡片】，用 2-4 条短句记录本步知识点、命令含义、常见错误；页面会自动保存这块内容。
+6. 每次回复末尾都必须输出标题【复习卡片】，用 2-4 条短句记录本步知识点、命令含义、常见错误；页面会在用户结束今天时统一保存这些卡片。
 7. 用户贴命令、代码、运行结果或报错后，再继续下一步。
 8. 如果用户贴报错，先判断错误属于环境、路径、依赖、数据、配置、API、代码逻辑中的哪一类，再只给下一步。
 9. 不要一次性生成大项目，不要让用户开放式搜索资料。
@@ -805,6 +944,24 @@ async function handleApi(req, res, pathname) {
     const body = await readBody(req);
     deleteCodexSessionId(body.sessionKey);
     send(res, 200, { ok: true });
+    return;
+  }
+
+  if (req.method === "GET" && pathname === "/api/progress") {
+    send(res, 200, { ok: true, progress: readProgressSnapshot() });
+    return;
+  }
+
+  if (req.method === "POST" && pathname === "/api/progress/sync") {
+    const body = await readBody(req);
+    const snapshot = body.snapshot || {};
+    if (!snapshot || typeof snapshot !== "object") {
+      sendError(res, 400, "Invalid progress snapshot");
+      return;
+    }
+    writeProgressSnapshot(snapshot);
+    const git = await gitSyncProgress(String(body.reason || "").slice(0, 120));
+    send(res, 200, { ok: true, progressFile: path.relative(ROOT, PROGRESS_FILE), git });
     return;
   }
 

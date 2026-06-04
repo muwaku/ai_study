@@ -731,7 +731,7 @@
               </div>
               <div class="chat-log" id="chatLog" aria-live="polite"></div>
               <div class="chat-compose">
-                <textarea id="chatInput" placeholder="把你的运行结果、报错或疑问发给学习助手。"></textarea>
+                <textarea id="chatInput" placeholder="把运行结果、报错或疑问发给学习助手。Enter 发送，Shift+Enter 换行。"></textarea>
                 <button id="sendMessage">发送</button>
               </div>
             </div>
@@ -781,7 +781,7 @@
 
         <section class="panel">
           <div class="panel-header">
-            <h2>复习笔记</h2>
+            <h2>当天复习笔记</h2>
           </div>
           <div class="panel-body">
             <div class="note-list" id="autoNotes"></div>
@@ -790,15 +790,17 @@
 
         <section class="panel">
           <div class="panel-header">
-            <h2>数据管理</h2>
+            <h2>选择学习进度</h2>
           </div>
           <div class="panel-body">
             <div class="toolbar">
-              <button class="secondary" id="prevSession">上一次</button>
-              <button class="secondary" id="nextSession">下一次</button>
+              <button class="secondary" id="prevSession">上一天</button>
+              <button class="secondary" id="nextSession">下一天</button>
             </div>
+            <p class="small-text" style="margin-top: 10px;">切换后只显示当天的对话、知识点、完成检查和复习笔记。</p>
             <div class="divider"></div>
             <div class="toolbar">
+              <button class="secondary" id="syncNow">同步到 Git</button>
               <button class="ghost" id="exportState">导出进度</button>
               <button class="ghost" id="importState">导入进度</button>
               <button class="warn" id="resetState">重置</button>
@@ -1298,6 +1300,8 @@
       manualStartPanel: document.querySelector("#manualStartPanel"),
       manualReviewPanel: document.querySelector("#manualReviewPanel"),
       autoNotes: document.querySelector("#autoNotes"),
+      prevSession: document.querySelector("#prevSession"),
+      nextSession: document.querySelector("#nextSession"),
       stateBox: document.querySelector("#stateBox"),
       toast: document.querySelector("#toast"),
       confirmDialog: document.querySelector("#confirmDialog"),
@@ -1347,12 +1351,83 @@
       });
     }
 
-    function lessonPlanItems(lesson) {
+    function previousLessonFor(index) {
+      return index > 0 ? curriculum[index - 1] : null;
+    }
+
+    function isLastLessonOfWeek(index) {
+      const lesson = curriculum[index];
+      const next = curriculum[index + 1];
+      return Boolean(lesson) && (!next || next.week !== lesson.week);
+    }
+
+    function weekLessonsFor(index) {
+      const lesson = curriculum[index];
+      return curriculum.filter((item) => item.week === lesson.week);
+    }
+
+    function reviewPlanItems(index) {
+      const lesson = curriculum[index];
+      const previous = previousLessonFor(index);
+      const items = [];
+      if (previous) {
+        items.push(`课前复习：先用 5-10 分钟复习上一天「${previous.title}」，完成 2 个小检查题后再进入今天任务`);
+      }
+      if (isLastLessonOfWeek(index)) {
+        const titles = weekLessonsFor(index).map((item) => `D${item.day} ${item.title}`).join("；");
+        items.push(`本周综合练习：收束第 ${lesson.week} 周内容，综合覆盖 ${titles}`);
+      }
+      return items;
+    }
+
+    function enhancedAcceptance(index) {
+      const lesson = curriculum[index];
+      const items = [...(lesson.acceptance || [])];
+      if (previousLessonFor(index)) {
+        items.unshift("完成前一天复习题，并能说出昨天最容易忘的 1 个点");
+      }
+      if (isLastLessonOfWeek(index)) {
+        items.push(`完成第 ${lesson.week} 周周总练习，并能串起本周 3 天的关键能力`);
+      }
+      return items;
+    }
+
+    function lessonForIndex(index) {
+      const lesson = curriculum[index];
+      const previous = previousLessonFor(index);
+      const weekly = isLastLessonOfWeek(index);
+      return {
+        ...lesson,
+        acceptance: enhancedAcceptance(index),
+        reviewPlan: reviewPlanItems(index),
+        dailyReview: previous
+          ? {
+            title: previous.title,
+            topics: previous.topics || [],
+            acceptance: previous.acceptance || []
+          }
+          : null,
+        weeklyReview: weekly
+          ? {
+            week: lesson.week,
+            lessons: weekLessonsFor(index).map((item) => ({
+              day: item.day,
+              title: item.title,
+              topics: item.topics || [],
+              deliverable: item.deliverable
+            }))
+          }
+          : null
+      };
+    }
+
+    function lessonPlanItems(lesson, index = state.currentIndex) {
       return [
+        ...reviewPlanItems(index),
         `今天目标：${lesson.summary}`,
         `任务路线：${(lesson.practice || []).join("；")}`,
         `完成产物：${lesson.deliverable}`,
-        `完成检查：${(lesson.acceptance || []).join("；")}`
+        `完成检查：${enhancedAcceptance(index).join("；")}`
       ];
     }
 
@@ -1426,38 +1501,81 @@
       return body;
     }
 
-    function saveAutoReviewNote(text) {
-      const body = extractReviewCard(text);
-      if (!body) {
+    function getChatForSession(sessionIndex) {
+      try {
+        const saved = JSON.parse(localStorage.getItem(`${chatStoragePrefix}${sessionIndex}`));
+        return Array.isArray(saved) ? saved : [];
+      } catch {
+        return [];
+      }
+    }
+
+    function collectReviewCardsForSession(sessionIndex) {
+      return getChatForSession(sessionIndex)
+        .filter((message) => message.role === "assistant")
+        .map((message) => extractReviewCard(message.content || ""))
+        .filter(Boolean);
+    }
+
+    function buildSessionReviewBody(cards) {
+      return cards
+        .map((card, index) => [`第 ${index + 1} 张复习卡片`, card].join("\n"))
+        .join("\n\n");
+    }
+
+    function upsertSessionReviewNote(sessionIndex) {
+      const cards = collectReviewCardsForSession(sessionIndex);
+      if (cards.length === 0) {
         return false;
       }
-      const id = `auto-${state.currentIndex}-${simpleHash(body)}`;
-      if (state.notes.some((note) => note.id === id)) {
-        return false;
-      }
-      state.notes.push({
-        id,
-        type: "auto",
-        sessionIndex: state.currentIndex,
-        lesson: currentLesson().title,
-        title: `AI 复习卡片 · ${currentLesson().title}`,
-        body,
-        createdAt: new Date().toISOString()
+      const lesson = curriculum[sessionIndex];
+      const body = buildSessionReviewBody(cards);
+      const id = `session-review-${sessionIndex}`;
+      const existing = state.notes.find((note) => note.id === id);
+      const cleanedNotes = state.notes.filter((note) => {
+        if (note.id === id) {
+          return false;
+        }
+        return !(note.sessionIndex === sessionIndex && note.type === "auto");
       });
-      saveState();
+      if (existing?.body === body && cleanedNotes.length === state.notes.length - 1) {
+        return false;
+      }
+      state.notes = [
+        ...cleanedNotes,
+        {
+          id,
+          type: "session-review",
+          sessionIndex,
+          lesson: lesson.title,
+          title: `第 ${sessionIndex + 1} 次 · ${lesson.title}`,
+          body,
+          createdAt: existing?.createdAt || new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }
+      ];
       return true;
     }
 
-    function backfillReviewNotesFromChat() {
-      for (const message of getChat()) {
-        if (message.role === "assistant") {
-          saveAutoReviewNote(message.content || "");
-        }
+    function migrateFinishedReviewNotes() {
+      const indexes = new Set(state.completed);
+      for (let index = 0; index < state.currentIndex; index += 1) {
+        indexes.add(index);
+      }
+      let changed = false;
+      [...indexes]
+        .filter((index) => Number.isInteger(index) && index >= 0 && index < curriculum.length)
+        .sort((a, b) => a - b)
+        .forEach((index) => {
+          changed = upsertSessionReviewNote(index) || changed;
+        });
+      if (changed) {
+        saveState();
       }
     }
 
     function currentLesson() {
-      return curriculum[state.currentIndex];
+      return lessonForIndex(state.currentIndex);
     }
 
     function startPrompt(lesson) {
@@ -1491,6 +1609,8 @@ ${list(lesson.acceptance)}
 你的对话框只负责发当前任务、解释当前命令、根据我的结果答疑、决定下一步。
 我会直接在对话框里贴命令输出、报错、代码或本地文件路径；不要让我去单独的提交验收区。
 你判断练习通过后，告诉我去右侧“完成检查”勾选通过标准，并点击“结束今天并保存进度”。
+如果今天有“课前复习”，第一步必须先出 2 个前一天复习小题，等我答完再进入今天新任务。
+如果今天有“本周综合练习”，今天的新任务完成后必须再安排 1 个周总练习，覆盖本周 3 天能力。
 
 请按以下方式带我学习：
 1. 不要在对话框里重复长篇教材规划、完整学习计划或大段背景课文。
@@ -1498,7 +1618,7 @@ ${list(lesson.acceptance)}
 3. 给命令前，先用 1-2 句话解释为什么做这一步，以及每条命令是什么意思。例如 mkdir 是创建文件夹，cd 是进入文件夹。
 4. 每一步都告诉我应该看到什么结果，以及结果不一样时要贴什么。
 5. 我问概念时，短答即可：先给一句白话解释，再给一个和当前任务相关的小例子。
-6. 每次回复末尾都必须输出标题【复习卡片】，用 2-4 条短句记录本步知识点、命令含义、常见错误；页面会自动保存这块内容。
+6. 每次回复末尾都必须输出标题【复习卡片】，用 2-4 条短句记录本步知识点、命令含义、常见错误；页面会在结束今天时统一保存这些卡片。
 7. 等我贴命令、代码、运行结果或报错后再继续。
 8. 如果我贴报错，先判断错误属于环境、路径、依赖、数据、配置、API、代码逻辑中的哪一类，再只给我下一步。
 9. 不要一次性生成大项目，不要让我自己去开放式搜索资料。
@@ -1562,15 +1682,19 @@ ${list(lesson.acceptance)}`;
     }
 
     function renderNotes() {
+      const sessionIndex = state.currentIndex;
       const notes = state.notes
-        .filter((note) => note.sessionIndex === state.currentIndex)
-        .slice(-8)
-        .reverse();
+        .filter((note) => note.type === "session-review" && note.sessionIndex === sessionIndex)
+        .sort((a, b) => {
+          return String(a.createdAt || "").localeCompare(String(b.createdAt || ""));
+        });
       els.autoNotes.innerHTML = "";
       if (notes.length === 0) {
         const empty = document.createElement("p");
         empty.className = "small-text";
-        empty.textContent = "AI 回复里的复习卡片会自动显示在这里。";
+        empty.textContent = state.completed.includes(sessionIndex)
+          ? "这一天还没有可汇总的复习卡片。"
+          : "结束这一天并保存进度后，本次对话里的复习卡片会按顺序写到这里。";
         els.autoNotes.appendChild(empty);
         return;
       }
@@ -1605,9 +1729,11 @@ ${list(lesson.acceptance)}`;
       const percent = Math.round((state.currentIndex / curriculum.length) * 100);
       els.progressBar.style.width = `${percent}%`;
       els.progressText.textContent = `已完成 ${state.completed.length} 次；当前进度 ${percent}%`;
+      els.prevSession.disabled = state.currentIndex === 0;
+      els.nextSession.disabled = state.currentIndex === curriculum.length - 1;
       els.startPrompt.value = startPrompt(lesson);
       els.reviewPrompt.value = reviewPrompt(lesson);
-      backfillReviewNotesFromChat();
+      migrateFinishedReviewNotes();
       renderChat();
       renderNotes();
       saveState();
@@ -1680,6 +1806,110 @@ ${list(lesson.acceptance)}`;
         throw new Error(json.error || `请求失败：${response.status}`);
       }
       return json;
+    }
+
+    function readStoredJson(key, fallback) {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(key));
+        return parsed ?? fallback;
+      } catch {
+        return fallback;
+      }
+    }
+
+    function collectProgressSnapshot() {
+      const chats = {};
+      const exerciseKnowledge = {};
+      curriculum.forEach((_, index) => {
+        const chat = readStoredJson(`${chatStoragePrefix}${index}`, []);
+        if (Array.isArray(chat) && chat.length) {
+          chats[index] = chat;
+        }
+        const knowledge = readStoredJson(`ai-learning-assistant-exercise-knowledge-${index}`, null);
+        if (knowledge) {
+          exerciseKnowledge[index] = knowledge;
+        }
+      });
+      return {
+        version: 1,
+        app: "ai-learning-assistant",
+        savedAt: new Date().toISOString(),
+        state: JSON.parse(JSON.stringify(state)),
+        chats,
+        exerciseKnowledge
+      };
+    }
+
+    function applyProgressSnapshot(progress) {
+      if (!progress || typeof progress !== "object" || !progress.state) {
+        return false;
+      }
+      Object.assign(state, {
+        ...defaultState,
+        ...progress.state,
+        currentIndex: clamp(progress.state.currentIndex || 0, 0, curriculum.length - 1),
+        completed: Array.isArray(progress.state.completed) ? progress.state.completed : [],
+        notes: Array.isArray(progress.state.notes) ? progress.state.notes : []
+      });
+      localStorage.setItem(storageKey, JSON.stringify(state));
+      Object.entries(progress.chats || {}).forEach(([index, messages]) => {
+        if (Array.isArray(messages)) {
+          localStorage.setItem(`${chatStoragePrefix}${index}`, JSON.stringify(messages));
+        }
+      });
+      Object.entries(progress.exerciseKnowledge || {}).forEach(([index, knowledge]) => {
+        if (knowledge) {
+          localStorage.setItem(`ai-learning-assistant-exercise-knowledge-${index}`, JSON.stringify(knowledge));
+        }
+      });
+      return true;
+    }
+
+    function progressTime(value) {
+      return Date.parse(value?.state?.updatedAt || value?.savedAt || "") || 0;
+    }
+
+    async function restoreProgressSnapshot() {
+      try {
+        const response = await fetch("/api/progress", { cache: "no-store" });
+        const json = await response.json();
+        const remote = json.progress;
+        if (!remote) {
+          return false;
+        }
+        const local = readStoredJson(storageKey, null);
+        if (local && progressTime({ state: local }) >= progressTime(remote)) {
+          return false;
+        }
+        const restored = applyProgressSnapshot(remote);
+        if (restored) {
+          showToast("已从 Git 进度快照恢复");
+        }
+        return restored;
+      } catch {
+        return false;
+      }
+    }
+
+    async function syncProgressToGit(reason) {
+      try {
+        const response = await apiRequest("/api/progress/sync", {
+          reason,
+          snapshot: collectProgressSnapshot()
+        });
+        if (response.git?.pushed) {
+          showToast("学习进度已同步到 Git");
+        } else if (response.git?.committed) {
+          showToast("本地已提交，GitHub 推送失败");
+          console.warn(response.git.pushError || response.git.pushOutput);
+        } else {
+          showToast("没有新的进度需要同步");
+        }
+        return response;
+      } catch (error) {
+        showToast(`Git 同步失败：${error.message}`);
+        return null;
+      }
     }
 
     async function refreshApiStatus() {
@@ -1797,7 +2027,6 @@ ${list(lesson.acceptance)}`;
         }
         const nextMessages = silentUserMessage ? messages : getChat();
         nextMessages.push({ role: "assistant", content: processed.message });
-        saveAutoReviewNote(processed.message);
         saveChat(nextMessages);
         render();
         renderChat();
@@ -1938,6 +2167,8 @@ ${list(lesson.acceptance)}`;
         showToast("先勾选全部通过标准");
         return;
       }
+      const currentSession = state.currentIndex;
+      const wroteReviewNotes = upsertSessionReviewNote(currentSession);
       if (!state.completed.includes(state.currentIndex)) {
         state.completed.push(state.currentIndex);
       }
@@ -1946,7 +2177,8 @@ ${list(lesson.acceptance)}`;
       }
       saveState();
       render();
-      showToast("今天已结束，进度已保存");
+      showToast(wroteReviewNotes ? "今天已结束，复习笔记和进度已保存" : "今天已结束，进度已保存");
+      syncProgressToGit(`完成第 ${currentSession + 1} 次学习`);
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
 
@@ -2028,7 +2260,7 @@ ${list(lesson.acceptance)}`;
     on("#toggleSettings", "click", () => {
       els.apiSettings.style.display = els.apiSettings.style.display === "none" ? "grid" : "none";
     });
-    on("#sendMessage", "click", () => {
+    function sendCurrentChatInput() {
       const text = els.chatInput.value.trim();
       if (!text) {
         showToast("先输入要发送的内容");
@@ -2036,7 +2268,8 @@ ${list(lesson.acceptance)}`;
       }
       els.chatInput.value = "";
       sendTutorMessage(text);
-    });
+    }
+    on("#sendMessage", "click", sendCurrentChatInput);
     on("#clearChat", "click", async () => {
       localStorage.removeItem(chatKey());
       localStorage.removeItem(exerciseKnowledgeKey());
@@ -2050,9 +2283,9 @@ ${list(lesson.acceptance)}`;
       showToast("本次对话已清空");
     });
     on("#chatInput", "keydown", (event) => {
-      if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+      if (event.key === "Enter" && !event.shiftKey) {
         event.preventDefault();
-        document.querySelector("#sendMessage").click();
+        sendCurrentChatInput();
       }
     });
     document.querySelector("#completeSession").addEventListener("click", completeSession);
@@ -2068,6 +2301,9 @@ ${list(lesson.acceptance)}`;
       saveState();
       render();
       window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+    document.querySelector("#syncNow").addEventListener("click", () => {
+      syncProgressToGit("手动同步学习进度");
     });
     document.querySelector("#exportState").addEventListener("click", () => {
       els.stateBox.value = JSON.stringify(state, null, 2);
@@ -2098,8 +2334,10 @@ ${list(lesson.acceptance)}`;
       });
     });
 
-    render();
-    refreshApiStatus();
+    restoreProgressSnapshot().finally(() => {
+      render();
+      refreshApiStatus();
+    });
   </script>
 </body>
 </html>
